@@ -1,0 +1,1004 @@
+
+Allocating common symbols
+Common symbol       size              file
+
+otable              0xc               Debug/TinyTimber.o
+upcoming            0x4               Debug/TinyTimber.o
+threads             0x50              Debug/TinyTimber.o
+mtable              0xc               Debug/TinyTimber.o
+thread0             0x14              Debug/TinyTimber.o
+messages            0x2d0             Debug/TinyTimber.o
+__heap_end          0x4               Debug/TinyTimber.o
+stacks              0x8000            Debug/TinyTimber.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+RAM              0x20000000         0x0001c000         xrw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD Debug/dispatch.o
+LOAD Debug/TinyTimber.o
+LOAD Debug/canTinyTimber.o
+LOAD Debug/sciTinyTimber.o
+LOAD Debug/stm32f4xx_can.o
+LOAD Debug/stm32f4xx_dac.o
+LOAD Debug/stm32f4xx_exti.o
+LOAD Debug/stm32f4xx_gpio.o
+LOAD Debug/stm32f4xx_rcc.o
+LOAD Debug/stm32f4xx_syscfg.o
+LOAD Debug/stm32f4xx_tim.o
+LOAD Debug/stm32f4xx_usart.o
+LOAD Debug/startup.o
+LOAD Debug/application.o
+LOAD c:/cseapp/codelite/tools/gcc-arm/bin/../lib/gcc/arm-none-eabi/9.2.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libstdc++_nano.a
+LOAD c:/cseapp/codelite/tools/gcc-arm/bin/../lib/gcc/arm-none-eabi/9.2.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a
+START GROUP
+LOAD c:/cseapp/codelite/tools/gcc-arm/bin/../lib/gcc/arm-none-eabi/9.2.1/thumb/v7e-m+fp/hard\libgcc.a
+LOAD c:/cseapp/codelite/tools/gcc-arm/bin/../lib/gcc/arm-none-eabi/9.2.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a
+END GROUP
+START GROUP
+LOAD c:/cseapp/codelite/tools/gcc-arm/bin/../lib/gcc/arm-none-eabi/9.2.1/thumb/v7e-m+fp/hard\libgcc.a
+LOAD c:/cseapp/codelite/tools/gcc-arm/bin/../lib/gcc/arm-none-eabi/9.2.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a
+END GROUP
+
+.text           0x20000000     0x6d70
+                0x20000000                . = ALIGN (0x4)
+ *(.start_section)
+ .start_section
+                0x20000000       0x1c Debug/startup.o
+                0x20000000                startup
+ *(.text)
+ .text          0x2000001c       0xf4 Debug/dispatch.o
+                0x2000001c                vect_SVCall
+                0x20000020                vect_PendSV
+ .text          0x20000110      0xf54 Debug/TinyTimber.o
+                0x20000198                DUMP
+                0x200001d2                DUMPH
+                0x20000230                DUMPD
+                0x200002d4                sei
+                0x200002f2                cli
+                0x20000310                _sbrk
+                0x20000354                SETSTACK
+                0x200003bc                SETPC
+                0x200003e0                TIMER_INIT
+                0x20000478                DUMPC
+                0x200004ac                vect_USART1
+                0x20000514                vect_CAN1
+                0x2000057c                vect_EXTI9_5
+                0x200005e4                enqueueByDeadline
+                0x2000063c                enqueueByBaseline
+                0x20000694                dequeue
+                0x200006e4                dequeue_pool
+                0x20000734                insert
+                0x20000758                push
+                0x2000077c                pop
+                0x200007fe                vect_TIM5
+                0x20000890                __svc_dispatch
+                0x200008a0                __pendSV_dispatch
+                0x20000a10                async
+                0x20000b4c                sync
+                0x20000c58                ABORT
+                0x20000d0c                T_RESET
+                0x20000d48                T_SAMPLE
+                0x20000d88                CURRENT_OFFSET
+                0x20000f34                install
+                0x20001000                tinytimber
+ .text          0x20001064      0x434 Debug/canTinyTimber.o
+                0x200010ec                can_init
+                0x200011a4                can_interrupt
+                0x2000132c                can_receive
+                0x200013f6                can_send
+ .text          0x20001498      0x294 Debug/sciTinyTimber.o
+                0x20001520                sci_init
+                0x200015c6                sci_write
+                0x2000161c                sci_writechar
+                0x20001652                sci_interrupt
+ .text          0x2000172c     0x11b4 Debug/stm32f4xx_can.o
+                0x2000172c                CAN_DeInit
+                0x20001774                CAN_Init
+                0x20001916                CAN_FilterInit
+                0x20001a9c                CAN_StructInit
+                0x20001af2                CAN_SlaveStartBank
+                0x20001b54                CAN_DBGFreeze
+                0x20001b8c                CAN_TTComModeCmd
+                0x20001c24                CAN_Transmit
+                0x20001dc6                CAN_TransmitStatus
+                0x20001ecc                CAN_CancelTransmit
+                0x20001f24                CAN_Receive
+                0x200020a0                CAN_FIFORelease
+                0x200020d8                CAN_MessagePending
+                0x20002122                CAN_OperatingModeRequest
+                0x2000221e                CAN_Sleep
+                0x20002258                CAN_WakeUp
+                0x200022ae                CAN_GetLastErrorCode
+                0x200022d4                CAN_GetReceiveErrorCounter
+                0x200022f6                CAN_GetLSBTransmitErrorCounter
+                0x20002318                CAN_ITConfig
+                0x20002354                CAN_GetFlagStatus
+                0x20002422                CAN_ClearFlag
+                0x20002494                CAN_GetITStatus
+                0x200026f8                CAN_ClearITPendingBit
+ .text          0x200028e0      0x450 Debug/stm32f4xx_dac.o
+                0x200028e0                DAC_DeInit
+                0x200028fc                DAC_Init
+                0x20002964                DAC_StructInit
+                0x20002990                DAC_Cmd
+                0x200029dc                DAC_SoftwareTriggerCmd
+                0x20002a2c                DAC_DualSoftwareTriggerCmd
+                0x20002a68                DAC_WaveGenerationCmd
+                0x20002ab4                DAC_SetChannel1Data
+                0x20002aec                DAC_SetChannel2Data
+                0x20002b24                DAC_SetDualChannelData
+                0x20002b7c                DAC_GetDataOutputValue
+                0x20002bb0                DAC_DMACmd
+                0x20002c00                DAC_ITConfig
+                0x20002c4c                DAC_GetFlagStatus
+                0x20002c88                DAC_ClearFlag
+                0x20002cb0                DAC_GetITStatus
+                0x20002d08                DAC_ClearITPendingBit
+ .text          0x20002d30      0x210 Debug/stm32f4xx_exti.o
+                0x20002d30                EXTI_DeInit
+                0x20002d64                EXTI_Init
+                0x20002e48                EXTI_StructInit
+                0x20002e74                EXTI_GenerateSWInterrupt
+                0x20002e98                EXTI_GetFlagStatus
+                0x20002ecc                EXTI_ClearFlag
+                0x20002eec                EXTI_GetITStatus
+                0x20002f20                EXTI_ClearITPendingBit
+ .text          0x20002f40      0x4d8 Debug/stm32f4xx_gpio.o
+                0x20002f40                GPIO_DeInit
+                0x200030a4                GPIO_Init
+                0x200031c2                GPIO_StructInit
+                0x200031f6                GPIO_PinLockConfig
+                0x2000323a                GPIO_ReadInputDataBit
+                0x2000326e                GPIO_ReadInputData
+                0x20003288                GPIO_ReadOutputDataBit
+                0x200032bc                GPIO_ReadOutputData
+                0x200032d6                GPIO_SetBits
+                0x200032f4                GPIO_ResetBits
+                0x20003312                GPIO_WriteBit
+                0x20003342                GPIO_Write
+                0x20003360                GPIO_ToggleBits
+                0x20003384                GPIO_PinAFConfig
+ .text          0x20003418      0xcb0 Debug/stm32f4xx_rcc.o
+                0x20003418                RCC_DeInit
+                0x20003488                RCC_HSEConfig
+                0x200034b0                RCC_WaitForHSEStartUp
+                0x20003500                RCC_AdjustHSICalibrationValue
+                0x2000353c                RCC_HSICmd
+                0x2000355c                RCC_LSEConfig
+                0x200035a0                RCC_LSICmd
+                0x200035c0                RCC_PLLConfig
+                0x20003600                RCC_PLLCmd
+                0x20003620                RCC_PLLI2SConfig
+                0x2000364c                RCC_PLLI2SCmd
+                0x2000366c                RCC_PLLSAIConfig
+                0x200036a0                RCC_PLLSAICmd
+                0x200036c0                RCC_ClockSecuritySystemCmd
+                0x200036e0                RCC_MCO1Config
+                0x20003720                RCC_MCO2Config
+                0x20003760                RCC_SYSCLKConfig
+                0x20003798                RCC_GetSYSCLKSource
+                0x200037b8                RCC_HCLKConfig
+                0x200037f0                RCC_PCLK1Config
+                0x20003828                RCC_PCLK2Config
+                0x20003864                RCC_GetClocksFreq
+                0x200039c0                RCC_RTCCLKConfig
+                0x20003a1c                RCC_RTCCLKCmd
+                0x20003a3c                RCC_BackupResetCmd
+                0x20003a5c                RCC_I2SCLKConfig
+                0x20003a7c                RCC_SAIPLLI2SClkDivConfig
+                0x20003abc                RCC_SAIPLLSAIClkDivConfig
+                0x20003afc                RCC_SAIBlockACLKConfig
+                0x20003b38                RCC_SAIBlockBCLKConfig
+                0x20003b74                RCC_LTDCCLKDivConfig
+                0x20003bb0                RCC_TIMCLKPresConfig
+                0x20003bd0                RCC_AHB1PeriphClockCmd
+                0x20003c10                RCC_AHB2PeriphClockCmd
+                0x20003c50                RCC_AHB3PeriphClockCmd
+                0x20003c90                RCC_APB1PeriphClockCmd
+                0x20003cd0                RCC_APB2PeriphClockCmd
+                0x20003d10                RCC_AHB1PeriphResetCmd
+                0x20003d50                RCC_AHB2PeriphResetCmd
+                0x20003d90                RCC_AHB3PeriphResetCmd
+                0x20003dd0                RCC_APB1PeriphResetCmd
+                0x20003e10                RCC_APB2PeriphResetCmd
+                0x20003e50                RCC_AHB1PeriphClockLPModeCmd
+                0x20003e90                RCC_AHB2PeriphClockLPModeCmd
+                0x20003ed0                RCC_AHB3PeriphClockLPModeCmd
+                0x20003f10                RCC_APB1PeriphClockLPModeCmd
+                0x20003f50                RCC_APB2PeriphClockLPModeCmd
+                0x20003f90                RCC_ITConfig
+                0x20003fdc                RCC_GetFlagStatus
+                0x20004050                RCC_ClearFlag
+                0x20004070                RCC_GetITStatus
+                0x200040a8                RCC_ClearITPendingBit
+ .text          0x200040c8      0x154 Debug/stm32f4xx_syscfg.o
+                0x200040c8                SYSCFG_DeInit
+                0x200040e4                SYSCFG_MemoryRemapConfig
+                0x20004104                SYSCFG_MemorySwappingBank
+                0x20004124                SYSCFG_EXTILineConfig
+                0x200041a8                SYSCFG_ETH_MediaInterfaceConfig
+                0x200041c8                SYSCFG_CompensationCellCmd
+                0x200041e8                SYSCFG_GetCompensationCellStatus
+ .text          0x2000421c     0x1c1c Debug/stm32f4xx_tim.o
+                0x2000421c                TIM_DeInit
+                0x200043dc                TIM_TimeBaseInit
+                0x200044b4                TIM_TimeBaseStructInit
+                0x200044e8                TIM_PrescalerConfig
+                0x20004510                TIM_CounterModeConfig
+                0x20004548                TIM_SetCounter
+                0x20004564                TIM_SetAutoreload
+                0x20004580                TIM_GetCounter
+                0x20004598                TIM_GetPrescaler
+                0x200045b2                TIM_UpdateDisableConfig
+                0x200045f2                TIM_UpdateRequestConfig
+                0x20004632                TIM_ARRPreloadConfig
+                0x20004672                TIM_SelectOnePulseMode
+                0x200046aa                TIM_SetClockDivision
+                0x200046e2                TIM_Cmd
+                0x20004722                TIM_OC1Init
+                0x20004818                TIM_OC2Init
+                0x20004928                TIM_OC3Init
+                0x20004a34                TIM_OC4Init
+                0x20004b04                TIM_OCStructInit
+                0x20004b48                TIM_SelectOCxM
+                0x20004bfe                TIM_SetCompare1
+                0x20004c1a                TIM_SetCompare2
+                0x20004c36                TIM_SetCompare3
+                0x20004c52                TIM_SetCompare4
+                0x20004c6e                TIM_ForcedOC1Config
+                0x20004ca6                TIM_ForcedOC2Config
+                0x20004ce2                TIM_ForcedOC3Config
+                0x20004d1a                TIM_ForcedOC4Config
+                0x20004d56                TIM_OC1PreloadConfig
+                0x20004d8e                TIM_OC2PreloadConfig
+                0x20004dca                TIM_OC3PreloadConfig
+                0x20004e02                TIM_OC4PreloadConfig
+                0x20004e3e                TIM_OC1FastConfig
+                0x20004e76                TIM_OC2FastConfig
+                0x20004eb2                TIM_OC3FastConfig
+                0x20004eea                TIM_OC4FastConfig
+                0x20004f26                TIM_ClearOC1Ref
+                0x20004f5e                TIM_ClearOC2Ref
+                0x20004f9a                TIM_ClearOC3Ref
+                0x20004fd2                TIM_ClearOC4Ref
+                0x2000500e                TIM_OC1PolarityConfig
+                0x20005046                TIM_OC1NPolarityConfig
+                0x2000507e                TIM_OC2PolarityConfig
+                0x200050ba                TIM_OC2NPolarityConfig
+                0x200050f6                TIM_OC3PolarityConfig
+                0x20005132                TIM_OC3NPolarityConfig
+                0x2000516e                TIM_OC4PolarityConfig
+                0x200051aa                TIM_CCxCmd
+                0x20005200                TIM_CCxNCmd
+                0x20005256                TIM_ICInit
+                0x200052fe                TIM_ICStructInit
+                0x20005330                TIM_PWMIConfig
+                0x200053e8                TIM_GetCapture1
+                0x20005400                TIM_GetCapture2
+                0x20005418                TIM_GetCapture3
+                0x20005430                TIM_GetCapture4
+                0x20005448                TIM_SetIC1Prescaler
+                0x20005480                TIM_SetIC2Prescaler
+                0x200054bc                TIM_SetIC3Prescaler
+                0x200054f4                TIM_SetIC4Prescaler
+                0x20005530                TIM_BDTRConfig
+                0x20005580                TIM_BDTRStructInit
+                0x200055be                TIM_CtrlPWMOutputs
+                0x2000560a                TIM_SelectCOM
+                0x2000564a                TIM_CCPreloadControl
+                0x2000568a                TIM_ITConfig
+                0x200056d2                TIM_GenerateEvent
+                0x200056f0                TIM_GetFlagStatus
+                0x20005728                TIM_ClearFlag
+                0x2000574a                TIM_GetITStatus
+                0x2000579e                TIM_ClearITPendingBit
+                0x200057c0                TIM_DMAConfig
+                0x200057ea                TIM_DMACmd
+                0x20005832                TIM_SelectCCDMA
+                0x20005872                TIM_InternalClockConfig
+                0x20005896                TIM_ITRxExternalClockConfig
+                0x200058c4                TIM_TIxExternalClockConfig
+                0x20005920                TIM_ETRClockMode1Config
+                0x2000597e                TIM_ETRClockMode2Config
+                0x200059bc                TIM_SelectInputTrigger
+                0x200059f4                TIM_SelectOutputTrigger
+                0x20005a2c                TIM_SelectSlaveMode
+                0x20005a64                TIM_SelectMasterSlaveMode
+                0x20005a9c                TIM_ETRConfig
+                0x20005af0                TIM_EncoderInterfaceConfig
+                0x20005b88                TIM_SelectHallSensor
+                0x20005bc8                TIM_RemapConfig
+ .text          0x20005e38      0x970 Debug/stm32f4xx_usart.o
+                0x20005e38                USART_DeInit
+                0x20005f50                USART_Init
+                0x200060c4                USART_StructInit
+                0x200060fe                USART_ClockInit
+                0x20006154                USART_ClockStructInit
+                0x20006180                USART_Cmd
+                0x200061c0                USART_SetPrescaler
+                0x200061fa                USART_OverSampling8Cmd
+                0x2000623e                USART_OneBitMethodCmd
+                0x2000627e                USART_SendData
+                0x200062a2                USART_ReceiveData
+                0x200062c2                USART_SetAddress
+                0x200062fc                USART_ReceiverWakeUpCmd
+                0x2000633c                USART_WakeUpConfig
+                0x20006374                USART_LINBreakDetectLengthConfig
+                0x200063ac                USART_LINCmd
+                0x200063ec                USART_SendBreak
+                0x20006410                USART_HalfDuplexCmd
+                0x20006450                USART_SetGuardTime
+                0x2000648c                USART_SmartCardCmd
+                0x200064cc                USART_SmartCardNACKCmd
+                0x2000650c                USART_IrDAConfig
+                0x20006544                USART_IrDACmd
+                0x20006584                USART_DMACmd
+                0x200065cc                USART_ITConfig
+                0x2000665c                USART_GetFlagStatus
+                0x20006694                USART_ClearFlag
+                0x200066b6                USART_GetITStatus
+                0x2000676c                USART_ClearITPendingBit
+ .text          0x200067a8      0x32c Debug/startup.o
+ .text          0x20006ad4      0x158 Debug/application.o
+                0x20006ad4                receiver
+                0x20006b24                reader
+                0x20006b6c                startApp
+                0x20006bec                main
+ *(.text.*)
+ *(.rodata)
+ .rodata        0x20006c2c       0x81 Debug/TinyTimber.o
+ *fill*         0x20006cad        0x3 
+ .rodata        0x20006cb0       0x8a Debug/canTinyTimber.o
+ *fill*         0x20006d3a        0x2 
+ .rodata        0x20006d3c       0x31 Debug/application.o
+ *(.rodata*)
+ *(.glue_7)
+ .glue_7        0x20006d6d        0x0 linker stubs
+ *(.glue_7t)
+ .glue_7t       0x20006d6d        0x0 linker stubs
+                0x20006d70                . = ALIGN (0x4)
+ *fill*         0x20006d6d        0x3 
+
+.vfp11_veneer   0x20006d70        0x0
+ .vfp11_veneer  0x20006d70        0x0 linker stubs
+
+.v4_bx          0x20006d70        0x0
+ .v4_bx         0x20006d70        0x0 linker stubs
+
+.iplt           0x20006d70        0x0
+ .iplt          0x20006d70        0x0 Debug/dispatch.o
+
+.rel.dyn        0x20006d70        0x0
+ .rel.iplt      0x20006d70        0x0 Debug/dispatch.o
+
+.data           0x20006d70      0x560
+                0x20006d70                . = ALIGN (0x4)
+ *(.data)
+ .data          0x20006d70       0x84 Debug/dispatch.o
+ .data          0x20006df4       0x24 Debug/TinyTimber.o
+                0x20006df4                hex
+                0x20006e08                msgPool
+                0x20006e0c                threadPool
+                0x20006e10                activeStack
+                0x20006e14                current
+ .data          0x20006e18        0x0 Debug/canTinyTimber.o
+ .data          0x20006e18        0x0 Debug/sciTinyTimber.o
+ .data          0x20006e18        0x0 Debug/stm32f4xx_can.o
+ .data          0x20006e18        0x0 Debug/stm32f4xx_dac.o
+ .data          0x20006e18        0x0 Debug/stm32f4xx_exti.o
+ .data          0x20006e18        0x0 Debug/stm32f4xx_gpio.o
+ .data          0x20006e18       0x10 Debug/stm32f4xx_rcc.o
+ .data          0x20006e28        0x0 Debug/stm32f4xx_syscfg.o
+ .data          0x20006e28        0x0 Debug/stm32f4xx_tim.o
+ .data          0x20006e28        0x0 Debug/stm32f4xx_usart.o
+ .data          0x20006e28        0x0 Debug/startup.o
+ .data          0x20006e28      0x4a8 Debug/application.o
+                0x20006e28                app
+                0x20006e38                sci0
+                0x20007258                can0
+ *(.data.*)
+                0x200072d0                . = ALIGN (0x4)
+
+.igot.plt       0x200072d0        0x0
+ .igot.plt      0x200072d0        0x0 Debug/dispatch.o
+
+.bss            0x200072d0     0x8370
+                0x200072d0                . = ALIGN (0x4)
+                0x200072d0                _sbss = .
+ *(.bss)
+ .bss           0x200072d0        0x0 Debug/dispatch.o
+ .bss           0x200072d0       0x18 Debug/TinyTimber.o
+                0x200072d0                msgQ
+                0x200072d4                timerQ
+                0x200072d8                runAsHardware
+                0x200072dc                doIRQSchedule
+                0x200072e0                timestamp
+                0x200072e4                overflows
+ .bss           0x200072e8        0x0 Debug/canTinyTimber.o
+ .bss           0x200072e8        0x0 Debug/sciTinyTimber.o
+ .bss           0x200072e8        0x0 Debug/stm32f4xx_can.o
+ .bss           0x200072e8        0x0 Debug/stm32f4xx_dac.o
+ .bss           0x200072e8        0x0 Debug/stm32f4xx_exti.o
+ .bss           0x200072e8        0x0 Debug/stm32f4xx_gpio.o
+ .bss           0x200072e8        0x0 Debug/stm32f4xx_rcc.o
+ .bss           0x200072e8        0x0 Debug/stm32f4xx_syscfg.o
+ .bss           0x200072e8        0x0 Debug/stm32f4xx_tim.o
+ .bss           0x200072e8        0x0 Debug/stm32f4xx_usart.o
+ .bss           0x200072e8        0x0 Debug/startup.o
+ .bss           0x200072e8        0x0 Debug/application.o
+ *(.bss.*)
+ *(COMMON)
+ COMMON         0x200072e8     0x8358 Debug/TinyTimber.o
+                0x200072e8                otable
+                0x200072f4                upcoming
+                0x200072f8                threads
+                0x20007348                mtable
+                0x20007354                thread0
+                0x20007368                messages
+                0x20007638                __heap_end
+                0x20007640                stacks
+                0x2000f640                . = ALIGN (0x4)
+                0x2000f640                _ebss = .
+                0x2000f640                PROVIDE (end = _ebss)
+                [!provide]                PROVIDE (_end = _ebss)
+OUTPUT(Debug/RTS-Lab.elf elf32-littlearm)
+
+.ARM.attributes
+                0x00000000       0x35
+ .ARM.attributes
+                0x00000000       0x25 Debug/dispatch.o
+ .ARM.attributes
+                0x00000025       0x34 Debug/TinyTimber.o
+ .ARM.attributes
+                0x00000059       0x34 Debug/canTinyTimber.o
+ .ARM.attributes
+                0x0000008d       0x34 Debug/sciTinyTimber.o
+ .ARM.attributes
+                0x000000c1       0x34 Debug/stm32f4xx_can.o
+ .ARM.attributes
+                0x000000f5       0x34 Debug/stm32f4xx_dac.o
+ .ARM.attributes
+                0x00000129       0x34 Debug/stm32f4xx_exti.o
+ .ARM.attributes
+                0x0000015d       0x34 Debug/stm32f4xx_gpio.o
+ .ARM.attributes
+                0x00000191       0x34 Debug/stm32f4xx_rcc.o
+ .ARM.attributes
+                0x000001c5       0x34 Debug/stm32f4xx_syscfg.o
+ .ARM.attributes
+                0x000001f9       0x34 Debug/stm32f4xx_tim.o
+ .ARM.attributes
+                0x0000022d       0x34 Debug/stm32f4xx_usart.o
+ .ARM.attributes
+                0x00000261       0x34 Debug/startup.o
+ .ARM.attributes
+                0x00000295       0x34 Debug/application.o
+
+.comment        0x00000000       0x79
+ .comment       0x00000000       0x79 Debug/TinyTimber.o
+                                 0x7a (size before relaxing)
+ .comment       0x00000079       0x7a Debug/canTinyTimber.o
+ .comment       0x00000079       0x7a Debug/sciTinyTimber.o
+ .comment       0x00000079       0x7a Debug/stm32f4xx_can.o
+ .comment       0x00000079       0x7a Debug/stm32f4xx_dac.o
+ .comment       0x00000079       0x7a Debug/stm32f4xx_exti.o
+ .comment       0x00000079       0x7a Debug/stm32f4xx_gpio.o
+ .comment       0x00000079       0x7a Debug/stm32f4xx_rcc.o
+ .comment       0x00000079       0x7a Debug/stm32f4xx_syscfg.o
+ .comment       0x00000079       0x7a Debug/stm32f4xx_tim.o
+ .comment       0x00000079       0x7a Debug/stm32f4xx_usart.o
+ .comment       0x00000079       0x7a Debug/startup.o
+ .comment       0x00000079       0x7a Debug/application.o
+
+.debug_info     0x00000000     0xa261
+ .debug_info    0x00000000     0x183c Debug/TinyTimber.o
+ .debug_info    0x0000183c      0xdb4 Debug/canTinyTimber.o
+ .debug_info    0x000025f0      0x9d1 Debug/sciTinyTimber.o
+ .debug_info    0x00002fc1      0xc60 Debug/stm32f4xx_can.o
+ .debug_info    0x00003c21      0x6af Debug/stm32f4xx_dac.o
+ .debug_info    0x000042d0      0x383 Debug/stm32f4xx_exti.o
+ .debug_info    0x00004653      0x67f Debug/stm32f4xx_gpio.o
+ .debug_info    0x00004cd2      0xef4 Debug/stm32f4xx_rcc.o
+ .debug_info    0x00005bc6      0x2c4 Debug/stm32f4xx_syscfg.o
+ .debug_info    0x00005e8a     0x1e26 Debug/stm32f4xx_tim.o
+ .debug_info    0x00007cb0      0xa68 Debug/stm32f4xx_usart.o
+ .debug_info    0x00008718      0xade Debug/startup.o
+ .debug_info    0x000091f6     0x106b Debug/application.o
+
+.debug_abbrev   0x00000000     0x1dc5
+ .debug_abbrev  0x00000000      0x4f2 Debug/TinyTimber.o
+ .debug_abbrev  0x000004f2      0x277 Debug/canTinyTimber.o
+ .debug_abbrev  0x00000769      0x273 Debug/sciTinyTimber.o
+ .debug_abbrev  0x000009dc      0x238 Debug/stm32f4xx_can.o
+ .debug_abbrev  0x00000c14      0x1b9 Debug/stm32f4xx_dac.o
+ .debug_abbrev  0x00000dcd      0x1ea Debug/stm32f4xx_exti.o
+ .debug_abbrev  0x00000fb7      0x1e6 Debug/stm32f4xx_gpio.o
+ .debug_abbrev  0x0000119d      0x1f9 Debug/stm32f4xx_rcc.o
+ .debug_abbrev  0x00001396      0x164 Debug/stm32f4xx_syscfg.o
+ .debug_abbrev  0x000014fa      0x1c2 Debug/stm32f4xx_tim.o
+ .debug_abbrev  0x000016bc      0x1a8 Debug/stm32f4xx_usart.o
+ .debug_abbrev  0x00001864      0x286 Debug/startup.o
+ .debug_abbrev  0x00001aea      0x2db Debug/application.o
+
+.debug_aranges  0x00000000      0x1a8
+ .debug_aranges
+                0x00000000       0x20 Debug/TinyTimber.o
+ .debug_aranges
+                0x00000020       0x20 Debug/canTinyTimber.o
+ .debug_aranges
+                0x00000040       0x20 Debug/sciTinyTimber.o
+ .debug_aranges
+                0x00000060       0x20 Debug/stm32f4xx_can.o
+ .debug_aranges
+                0x00000080       0x20 Debug/stm32f4xx_dac.o
+ .debug_aranges
+                0x000000a0       0x20 Debug/stm32f4xx_exti.o
+ .debug_aranges
+                0x000000c0       0x20 Debug/stm32f4xx_gpio.o
+ .debug_aranges
+                0x000000e0       0x20 Debug/stm32f4xx_rcc.o
+ .debug_aranges
+                0x00000100       0x20 Debug/stm32f4xx_syscfg.o
+ .debug_aranges
+                0x00000120       0x20 Debug/stm32f4xx_tim.o
+ .debug_aranges
+                0x00000140       0x20 Debug/stm32f4xx_usart.o
+ .debug_aranges
+                0x00000160       0x28 Debug/startup.o
+ .debug_aranges
+                0x00000188       0x20 Debug/application.o
+
+.debug_line     0x00000000     0x3ef8
+ .debug_line    0x00000000      0x9f9 Debug/TinyTimber.o
+ .debug_line    0x000009f9      0x393 Debug/canTinyTimber.o
+ .debug_line    0x00000d8c      0x257 Debug/sciTinyTimber.o
+ .debug_line    0x00000fe3      0x837 Debug/stm32f4xx_can.o
+ .debug_line    0x0000181a      0x335 Debug/stm32f4xx_dac.o
+ .debug_line    0x00001b4f      0x25f Debug/stm32f4xx_exti.o
+ .debug_line    0x00001dae      0x390 Debug/stm32f4xx_gpio.o
+ .debug_line    0x0000213e      0x6e8 Debug/stm32f4xx_rcc.o
+ .debug_line    0x00002826      0x1a8 Debug/stm32f4xx_syscfg.o
+ .debug_line    0x000029ce      0xb05 Debug/stm32f4xx_tim.o
+ .debug_line    0x000034d3      0x4f2 Debug/stm32f4xx_usart.o
+ .debug_line    0x000039c5      0x2eb Debug/startup.o
+ .debug_line    0x00003cb0      0x248 Debug/application.o
+
+.debug_str      0x00000000     0x3453
+ .debug_str     0x00000000      0xbc4 Debug/TinyTimber.o
+                                0xc67 (size before relaxing)
+ .debug_str     0x00000bc4      0x210 Debug/canTinyTimber.o
+                                0xa28 (size before relaxing)
+ .debug_str     0x00000dd4       0x4b Debug/sciTinyTimber.o
+                                0x887 (size before relaxing)
+ .debug_str     0x00000e1f      0x393 Debug/stm32f4xx_can.o
+                                0x752 (size before relaxing)
+ .debug_str     0x000011b2      0x26d Debug/stm32f4xx_dac.o
+                                0x467 (size before relaxing)
+ .debug_str     0x0000141f      0x19f Debug/stm32f4xx_exti.o
+                                0x360 (size before relaxing)
+ .debug_str     0x000015be      0x29f Debug/stm32f4xx_gpio.o
+                                0x4b7 (size before relaxing)
+ .debug_str     0x0000185d      0x753 Debug/stm32f4xx_rcc.o
+                                0x9a9 (size before relaxing)
+ .debug_str     0x00001fb0      0x14f Debug/stm32f4xx_syscfg.o
+                                0x322 (size before relaxing)
+ .debug_str     0x000020ff      0xa58 Debug/stm32f4xx_tim.o
+                                0xde4 (size before relaxing)
+ .debug_str     0x00002b57      0x3f6 Debug/stm32f4xx_usart.o
+                                0x6a3 (size before relaxing)
+ .debug_str     0x00002f4d      0x104 Debug/startup.o
+                                0x7aa (size before relaxing)
+ .debug_str     0x00003051      0x402 Debug/application.o
+                                0x79c (size before relaxing)
+
+.debug_frame    0x00000000     0x2fb8
+ .debug_frame   0x00000000      0x57c Debug/TinyTimber.o
+ .debug_frame   0x0000057c      0x100 Debug/canTinyTimber.o
+ .debug_frame   0x0000067c      0x11c Debug/sciTinyTimber.o
+ .debug_frame   0x00000798      0x3f8 Debug/stm32f4xx_can.o
+ .debug_frame   0x00000b90      0x2ac Debug/stm32f4xx_dac.o
+ .debug_frame   0x00000e3c      0x148 Debug/stm32f4xx_exti.o
+ .debug_frame   0x00000f84      0x23c Debug/stm32f4xx_gpio.o
+ .debug_frame   0x000011c0      0x814 Debug/stm32f4xx_rcc.o
+ .debug_frame   0x000019d4      0x11c Debug/stm32f4xx_syscfg.o
+ .debug_frame   0x00001af0      0xe54 Debug/stm32f4xx_tim.o
+ .debug_frame   0x00002944      0x490 Debug/stm32f4xx_usart.o
+ .debug_frame   0x00002dd4      0x14c Debug/startup.o
+ .debug_frame   0x00002f20       0x98 Debug/application.o
+
+.debug_ranges   0x00000000       0x18
+ .debug_ranges  0x00000000       0x18 Debug/startup.o
+
+Cross Reference Table
+
+Symbol                                            File
+ABORT                                             Debug/TinyTimber.o
+CAN_CancelTransmit                                Debug/stm32f4xx_can.o
+CAN_ClearFlag                                     Debug/stm32f4xx_can.o
+CAN_ClearITPendingBit                             Debug/stm32f4xx_can.o
+CAN_DBGFreeze                                     Debug/stm32f4xx_can.o
+CAN_DeInit                                        Debug/stm32f4xx_can.o
+                                                  Debug/startup.o
+CAN_FIFORelease                                   Debug/stm32f4xx_can.o
+CAN_FilterInit                                    Debug/stm32f4xx_can.o
+                                                  Debug/startup.o
+CAN_GetFlagStatus                                 Debug/stm32f4xx_can.o
+                                                  Debug/canTinyTimber.o
+CAN_GetITStatus                                   Debug/stm32f4xx_can.o
+CAN_GetLSBTransmitErrorCounter                    Debug/stm32f4xx_can.o
+CAN_GetLastErrorCode                              Debug/stm32f4xx_can.o
+CAN_GetReceiveErrorCounter                        Debug/stm32f4xx_can.o
+CAN_ITConfig                                      Debug/stm32f4xx_can.o
+                                                  Debug/canTinyTimber.o
+CAN_Init                                          Debug/stm32f4xx_can.o
+                                                  Debug/canTinyTimber.o
+CAN_MessagePending                                Debug/stm32f4xx_can.o
+CAN_OperatingModeRequest                          Debug/stm32f4xx_can.o
+CAN_Receive                                       Debug/stm32f4xx_can.o
+                                                  Debug/canTinyTimber.o
+CAN_SlaveStartBank                                Debug/stm32f4xx_can.o
+CAN_Sleep                                         Debug/stm32f4xx_can.o
+CAN_StructInit                                    Debug/stm32f4xx_can.o
+                                                  Debug/canTinyTimber.o
+CAN_TTComModeCmd                                  Debug/stm32f4xx_can.o
+CAN_Transmit                                      Debug/stm32f4xx_can.o
+                                                  Debug/canTinyTimber.o
+CAN_TransmitStatus                                Debug/stm32f4xx_can.o
+CAN_WakeUp                                        Debug/stm32f4xx_can.o
+CURRENT_OFFSET                                    Debug/TinyTimber.o
+DAC_ClearFlag                                     Debug/stm32f4xx_dac.o
+DAC_ClearITPendingBit                             Debug/stm32f4xx_dac.o
+DAC_Cmd                                           Debug/stm32f4xx_dac.o
+                                                  Debug/startup.o
+DAC_DMACmd                                        Debug/stm32f4xx_dac.o
+DAC_DeInit                                        Debug/stm32f4xx_dac.o
+                                                  Debug/startup.o
+DAC_DualSoftwareTriggerCmd                        Debug/stm32f4xx_dac.o
+DAC_GetDataOutputValue                            Debug/stm32f4xx_dac.o
+DAC_GetFlagStatus                                 Debug/stm32f4xx_dac.o
+DAC_GetITStatus                                   Debug/stm32f4xx_dac.o
+DAC_ITConfig                                      Debug/stm32f4xx_dac.o
+DAC_Init                                          Debug/stm32f4xx_dac.o
+                                                  Debug/startup.o
+DAC_SetChannel1Data                               Debug/stm32f4xx_dac.o
+DAC_SetChannel2Data                               Debug/stm32f4xx_dac.o
+                                                  Debug/startup.o
+DAC_SetDualChannelData                            Debug/stm32f4xx_dac.o
+DAC_SoftwareTriggerCmd                            Debug/stm32f4xx_dac.o
+DAC_StructInit                                    Debug/stm32f4xx_dac.o
+                                                  Debug/startup.o
+DAC_WaveGenerationCmd                             Debug/stm32f4xx_dac.o
+DUMP                                              Debug/TinyTimber.o
+                                                  Debug/canTinyTimber.o
+                                                  Debug/dispatch.o
+DUMPC                                             Debug/TinyTimber.o
+DUMPD                                             Debug/TinyTimber.o
+                                                  Debug/dispatch.o
+DUMPH                                             Debug/TinyTimber.o
+                                                  Debug/dispatch.o
+EXTI_ClearFlag                                    Debug/stm32f4xx_exti.o
+EXTI_ClearITPendingBit                            Debug/stm32f4xx_exti.o
+EXTI_DeInit                                       Debug/stm32f4xx_exti.o
+                                                  Debug/startup.o
+EXTI_GenerateSWInterrupt                          Debug/stm32f4xx_exti.o
+EXTI_GetFlagStatus                                Debug/stm32f4xx_exti.o
+EXTI_GetITStatus                                  Debug/stm32f4xx_exti.o
+EXTI_Init                                         Debug/stm32f4xx_exti.o
+                                                  Debug/startup.o
+EXTI_StructInit                                   Debug/stm32f4xx_exti.o
+                                                  Debug/startup.o
+GPIO_DeInit                                       Debug/stm32f4xx_gpio.o
+                                                  Debug/startup.o
+GPIO_Init                                         Debug/stm32f4xx_gpio.o
+                                                  Debug/startup.o
+GPIO_PinAFConfig                                  Debug/stm32f4xx_gpio.o
+                                                  Debug/startup.o
+GPIO_PinLockConfig                                Debug/stm32f4xx_gpio.o
+GPIO_ReadInputData                                Debug/stm32f4xx_gpio.o
+GPIO_ReadInputDataBit                             Debug/stm32f4xx_gpio.o
+GPIO_ReadOutputData                               Debug/stm32f4xx_gpio.o
+GPIO_ReadOutputDataBit                            Debug/stm32f4xx_gpio.o
+GPIO_ResetBits                                    Debug/stm32f4xx_gpio.o
+GPIO_SetBits                                      Debug/stm32f4xx_gpio.o
+GPIO_StructInit                                   Debug/stm32f4xx_gpio.o
+                                                  Debug/startup.o
+GPIO_ToggleBits                                   Debug/stm32f4xx_gpio.o
+GPIO_Write                                        Debug/stm32f4xx_gpio.o
+GPIO_WriteBit                                     Debug/stm32f4xx_gpio.o
+                                                  Debug/startup.o
+                                                  Debug/TinyTimber.o
+RCC_AHB1PeriphClockCmd                            Debug/stm32f4xx_rcc.o
+                                                  Debug/startup.o
+RCC_AHB1PeriphClockLPModeCmd                      Debug/stm32f4xx_rcc.o
+RCC_AHB1PeriphResetCmd                            Debug/stm32f4xx_rcc.o
+                                                  Debug/stm32f4xx_gpio.o
+RCC_AHB2PeriphClockCmd                            Debug/stm32f4xx_rcc.o
+RCC_AHB2PeriphClockLPModeCmd                      Debug/stm32f4xx_rcc.o
+RCC_AHB2PeriphResetCmd                            Debug/stm32f4xx_rcc.o
+RCC_AHB3PeriphClockCmd                            Debug/stm32f4xx_rcc.o
+RCC_AHB3PeriphClockLPModeCmd                      Debug/stm32f4xx_rcc.o
+RCC_AHB3PeriphResetCmd                            Debug/stm32f4xx_rcc.o
+RCC_APB1PeriphClockCmd                            Debug/stm32f4xx_rcc.o
+                                                  Debug/startup.o
+RCC_APB1PeriphClockLPModeCmd                      Debug/stm32f4xx_rcc.o
+                                                  Debug/startup.o
+RCC_APB1PeriphResetCmd                            Debug/stm32f4xx_rcc.o
+                                                  Debug/stm32f4xx_usart.o
+                                                  Debug/stm32f4xx_tim.o
+                                                  Debug/stm32f4xx_dac.o
+                                                  Debug/stm32f4xx_can.o
+RCC_APB2PeriphClockCmd                            Debug/stm32f4xx_rcc.o
+                                                  Debug/startup.o
+RCC_APB2PeriphClockLPModeCmd                      Debug/stm32f4xx_rcc.o
+RCC_APB2PeriphResetCmd                            Debug/stm32f4xx_rcc.o
+                                                  Debug/stm32f4xx_usart.o
+                                                  Debug/stm32f4xx_tim.o
+                                                  Debug/stm32f4xx_syscfg.o
+RCC_AdjustHSICalibrationValue                     Debug/stm32f4xx_rcc.o
+RCC_BackupResetCmd                                Debug/stm32f4xx_rcc.o
+RCC_ClearFlag                                     Debug/stm32f4xx_rcc.o
+RCC_ClearITPendingBit                             Debug/stm32f4xx_rcc.o
+RCC_ClockSecuritySystemCmd                        Debug/stm32f4xx_rcc.o
+RCC_DeInit                                        Debug/stm32f4xx_rcc.o
+RCC_GetClocksFreq                                 Debug/stm32f4xx_rcc.o
+                                                  Debug/stm32f4xx_usart.o
+RCC_GetFlagStatus                                 Debug/stm32f4xx_rcc.o
+RCC_GetITStatus                                   Debug/stm32f4xx_rcc.o
+RCC_GetSYSCLKSource                               Debug/stm32f4xx_rcc.o
+RCC_HCLKConfig                                    Debug/stm32f4xx_rcc.o
+RCC_HSEConfig                                     Debug/stm32f4xx_rcc.o
+RCC_HSICmd                                        Debug/stm32f4xx_rcc.o
+RCC_I2SCLKConfig                                  Debug/stm32f4xx_rcc.o
+RCC_ITConfig                                      Debug/stm32f4xx_rcc.o
+RCC_LSEConfig                                     Debug/stm32f4xx_rcc.o
+RCC_LSICmd                                        Debug/stm32f4xx_rcc.o
+RCC_LTDCCLKDivConfig                              Debug/stm32f4xx_rcc.o
+RCC_MCO1Config                                    Debug/stm32f4xx_rcc.o
+RCC_MCO2Config                                    Debug/stm32f4xx_rcc.o
+RCC_PCLK1Config                                   Debug/stm32f4xx_rcc.o
+RCC_PCLK2Config                                   Debug/stm32f4xx_rcc.o
+RCC_PLLCmd                                        Debug/stm32f4xx_rcc.o
+RCC_PLLConfig                                     Debug/stm32f4xx_rcc.o
+RCC_PLLI2SCmd                                     Debug/stm32f4xx_rcc.o
+RCC_PLLI2SConfig                                  Debug/stm32f4xx_rcc.o
+RCC_PLLSAICmd                                     Debug/stm32f4xx_rcc.o
+RCC_PLLSAIConfig                                  Debug/stm32f4xx_rcc.o
+RCC_RTCCLKCmd                                     Debug/stm32f4xx_rcc.o
+RCC_RTCCLKConfig                                  Debug/stm32f4xx_rcc.o
+RCC_SAIBlockACLKConfig                            Debug/stm32f4xx_rcc.o
+RCC_SAIBlockBCLKConfig                            Debug/stm32f4xx_rcc.o
+RCC_SAIPLLI2SClkDivConfig                         Debug/stm32f4xx_rcc.o
+RCC_SAIPLLSAIClkDivConfig                         Debug/stm32f4xx_rcc.o
+RCC_SYSCLKConfig                                  Debug/stm32f4xx_rcc.o
+RCC_TIMCLKPresConfig                              Debug/stm32f4xx_rcc.o
+RCC_WaitForHSEStartUp                             Debug/stm32f4xx_rcc.o
+SETPC                                             Debug/TinyTimber.o
+SETSTACK                                          Debug/TinyTimber.o
+SYSCFG_CompensationCellCmd                        Debug/stm32f4xx_syscfg.o
+SYSCFG_DeInit                                     Debug/stm32f4xx_syscfg.o
+SYSCFG_ETH_MediaInterfaceConfig                   Debug/stm32f4xx_syscfg.o
+SYSCFG_EXTILineConfig                             Debug/stm32f4xx_syscfg.o
+                                                  Debug/startup.o
+SYSCFG_GetCompensationCellStatus                  Debug/stm32f4xx_syscfg.o
+SYSCFG_MemoryRemapConfig                          Debug/stm32f4xx_syscfg.o
+SYSCFG_MemorySwappingBank                         Debug/stm32f4xx_syscfg.o
+TIMER_INIT                                        Debug/TinyTimber.o
+TIM_ARRPreloadConfig                              Debug/stm32f4xx_tim.o
+TIM_BDTRConfig                                    Debug/stm32f4xx_tim.o
+TIM_BDTRStructInit                                Debug/stm32f4xx_tim.o
+TIM_CCPreloadControl                              Debug/stm32f4xx_tim.o
+TIM_CCxCmd                                        Debug/stm32f4xx_tim.o
+TIM_CCxNCmd                                       Debug/stm32f4xx_tim.o
+TIM_ClearFlag                                     Debug/stm32f4xx_tim.o
+TIM_ClearITPendingBit                             Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_ClearOC1Ref                                   Debug/stm32f4xx_tim.o
+TIM_ClearOC2Ref                                   Debug/stm32f4xx_tim.o
+TIM_ClearOC3Ref                                   Debug/stm32f4xx_tim.o
+TIM_ClearOC4Ref                                   Debug/stm32f4xx_tim.o
+TIM_Cmd                                           Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_CounterModeConfig                             Debug/stm32f4xx_tim.o
+TIM_CtrlPWMOutputs                                Debug/stm32f4xx_tim.o
+TIM_DMACmd                                        Debug/stm32f4xx_tim.o
+TIM_DMAConfig                                     Debug/stm32f4xx_tim.o
+TIM_DeInit                                        Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_ETRClockMode1Config                           Debug/stm32f4xx_tim.o
+TIM_ETRClockMode2Config                           Debug/stm32f4xx_tim.o
+TIM_ETRConfig                                     Debug/stm32f4xx_tim.o
+TIM_EncoderInterfaceConfig                        Debug/stm32f4xx_tim.o
+TIM_ForcedOC1Config                               Debug/stm32f4xx_tim.o
+TIM_ForcedOC2Config                               Debug/stm32f4xx_tim.o
+TIM_ForcedOC3Config                               Debug/stm32f4xx_tim.o
+TIM_ForcedOC4Config                               Debug/stm32f4xx_tim.o
+TIM_GenerateEvent                                 Debug/stm32f4xx_tim.o
+TIM_GetCapture1                                   Debug/stm32f4xx_tim.o
+TIM_GetCapture2                                   Debug/stm32f4xx_tim.o
+TIM_GetCapture3                                   Debug/stm32f4xx_tim.o
+TIM_GetCapture4                                   Debug/stm32f4xx_tim.o
+TIM_GetCounter                                    Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_GetFlagStatus                                 Debug/stm32f4xx_tim.o
+TIM_GetITStatus                                   Debug/stm32f4xx_tim.o
+TIM_GetPrescaler                                  Debug/stm32f4xx_tim.o
+TIM_ICInit                                        Debug/stm32f4xx_tim.o
+TIM_ICStructInit                                  Debug/stm32f4xx_tim.o
+TIM_ITConfig                                      Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_ITRxExternalClockConfig                       Debug/stm32f4xx_tim.o
+TIM_InternalClockConfig                           Debug/stm32f4xx_tim.o
+TIM_OC1FastConfig                                 Debug/stm32f4xx_tim.o
+TIM_OC1Init                                       Debug/stm32f4xx_tim.o
+TIM_OC1NPolarityConfig                            Debug/stm32f4xx_tim.o
+TIM_OC1PolarityConfig                             Debug/stm32f4xx_tim.o
+TIM_OC1PreloadConfig                              Debug/stm32f4xx_tim.o
+TIM_OC2FastConfig                                 Debug/stm32f4xx_tim.o
+TIM_OC2Init                                       Debug/stm32f4xx_tim.o
+TIM_OC2NPolarityConfig                            Debug/stm32f4xx_tim.o
+TIM_OC2PolarityConfig                             Debug/stm32f4xx_tim.o
+TIM_OC2PreloadConfig                              Debug/stm32f4xx_tim.o
+TIM_OC3FastConfig                                 Debug/stm32f4xx_tim.o
+TIM_OC3Init                                       Debug/stm32f4xx_tim.o
+TIM_OC3NPolarityConfig                            Debug/stm32f4xx_tim.o
+TIM_OC3PolarityConfig                             Debug/stm32f4xx_tim.o
+TIM_OC3PreloadConfig                              Debug/stm32f4xx_tim.o
+TIM_OC4FastConfig                                 Debug/stm32f4xx_tim.o
+TIM_OC4Init                                       Debug/stm32f4xx_tim.o
+TIM_OC4PolarityConfig                             Debug/stm32f4xx_tim.o
+TIM_OC4PreloadConfig                              Debug/stm32f4xx_tim.o
+TIM_OCStructInit                                  Debug/stm32f4xx_tim.o
+TIM_PWMIConfig                                    Debug/stm32f4xx_tim.o
+TIM_PrescalerConfig                               Debug/stm32f4xx_tim.o
+TIM_RemapConfig                                   Debug/stm32f4xx_tim.o
+TIM_SelectCCDMA                                   Debug/stm32f4xx_tim.o
+TIM_SelectCOM                                     Debug/stm32f4xx_tim.o
+TIM_SelectHallSensor                              Debug/stm32f4xx_tim.o
+TIM_SelectInputTrigger                            Debug/stm32f4xx_tim.o
+TIM_SelectMasterSlaveMode                         Debug/stm32f4xx_tim.o
+TIM_SelectOCxM                                    Debug/stm32f4xx_tim.o
+TIM_SelectOnePulseMode                            Debug/stm32f4xx_tim.o
+TIM_SelectOutputTrigger                           Debug/stm32f4xx_tim.o
+TIM_SelectSlaveMode                               Debug/stm32f4xx_tim.o
+TIM_SetAutoreload                                 Debug/stm32f4xx_tim.o
+TIM_SetClockDivision                              Debug/stm32f4xx_tim.o
+TIM_SetCompare1                                   Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_SetCompare2                                   Debug/stm32f4xx_tim.o
+TIM_SetCompare3                                   Debug/stm32f4xx_tim.o
+TIM_SetCompare4                                   Debug/stm32f4xx_tim.o
+TIM_SetCounter                                    Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_SetIC1Prescaler                               Debug/stm32f4xx_tim.o
+TIM_SetIC2Prescaler                               Debug/stm32f4xx_tim.o
+TIM_SetIC3Prescaler                               Debug/stm32f4xx_tim.o
+TIM_SetIC4Prescaler                               Debug/stm32f4xx_tim.o
+TIM_TIxExternalClockConfig                        Debug/stm32f4xx_tim.o
+TIM_TimeBaseInit                                  Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_TimeBaseStructInit                            Debug/stm32f4xx_tim.o
+                                                  Debug/TinyTimber.o
+TIM_UpdateDisableConfig                           Debug/stm32f4xx_tim.o
+TIM_UpdateRequestConfig                           Debug/stm32f4xx_tim.o
+T_RESET                                           Debug/TinyTimber.o
+T_SAMPLE                                          Debug/TinyTimber.o
+USART_ClearFlag                                   Debug/stm32f4xx_usart.o
+USART_ClearITPendingBit                           Debug/stm32f4xx_usart.o
+USART_ClockInit                                   Debug/stm32f4xx_usart.o
+USART_ClockStructInit                             Debug/stm32f4xx_usart.o
+USART_Cmd                                         Debug/stm32f4xx_usart.o
+USART_DMACmd                                      Debug/stm32f4xx_usart.o
+USART_DeInit                                      Debug/stm32f4xx_usart.o
+USART_GetFlagStatus                               Debug/stm32f4xx_usart.o
+                                                  Debug/sciTinyTimber.o
+                                                  Debug/TinyTimber.o
+USART_GetITStatus                                 Debug/stm32f4xx_usart.o
+USART_HalfDuplexCmd                               Debug/stm32f4xx_usart.o
+USART_ITConfig                                    Debug/stm32f4xx_usart.o
+                                                  Debug/sciTinyTimber.o
+USART_Init                                        Debug/stm32f4xx_usart.o
+USART_IrDACmd                                     Debug/stm32f4xx_usart.o
+USART_IrDAConfig                                  Debug/stm32f4xx_usart.o
+USART_LINBreakDetectLengthConfig                  Debug/stm32f4xx_usart.o
+USART_LINCmd                                      Debug/stm32f4xx_usart.o
+USART_OneBitMethodCmd                             Debug/stm32f4xx_usart.o
+USART_OverSampling8Cmd                            Debug/stm32f4xx_usart.o
+USART_ReceiveData                                 Debug/stm32f4xx_usart.o
+                                                  Debug/sciTinyTimber.o
+USART_ReceiverWakeUpCmd                           Debug/stm32f4xx_usart.o
+USART_SendBreak                                   Debug/stm32f4xx_usart.o
+USART_SendData                                    Debug/stm32f4xx_usart.o
+                                                  Debug/sciTinyTimber.o
+                                                  Debug/TinyTimber.o
+USART_SetAddress                                  Debug/stm32f4xx_usart.o
+USART_SetGuardTime                                Debug/stm32f4xx_usart.o
+USART_SetPrescaler                                Debug/stm32f4xx_usart.o
+USART_SmartCardCmd                                Debug/stm32f4xx_usart.o
+USART_SmartCardNACKCmd                            Debug/stm32f4xx_usart.o
+USART_StructInit                                  Debug/stm32f4xx_usart.o
+USART_WakeUpConfig                                Debug/stm32f4xx_usart.o
+__heap_end                                        Debug/TinyTimber.o
+__pendSV_dispatch                                 Debug/TinyTimber.o
+__svc_dispatch                                    Debug/TinyTimber.o
+_ebss                                             Debug/startup.o
+_sbrk                                             Debug/TinyTimber.o
+_sbss                                             Debug/startup.o
+activeStack                                       Debug/TinyTimber.o
+app                                               Debug/application.o
+async                                             Debug/TinyTimber.o
+                                                  Debug/sciTinyTimber.o
+                                                  Debug/canTinyTimber.o
+can0                                              Debug/application.o
+can_init                                          Debug/canTinyTimber.o
+                                                  Debug/application.o
+can_interrupt                                     Debug/canTinyTimber.o
+                                                  Debug/application.o
+can_receive                                       Debug/canTinyTimber.o
+                                                  Debug/application.o
+can_send                                          Debug/canTinyTimber.o
+                                                  Debug/application.o
+cli                                               Debug/TinyTimber.o
+current                                           Debug/TinyTimber.o
+                                                  Debug/dispatch.o
+dequeue                                           Debug/TinyTimber.o
+dequeue_pool                                      Debug/TinyTimber.o
+doIRQSchedule                                     Debug/TinyTimber.o
+                                                  Debug/sciTinyTimber.o
+                                                  Debug/canTinyTimber.o
+end                                               Debug/TinyTimber.o
+enqueueByBaseline                                 Debug/TinyTimber.o
+enqueueByDeadline                                 Debug/TinyTimber.o
+hex                                               Debug/TinyTimber.o
+insert                                            Debug/TinyTimber.o
+install                                           Debug/TinyTimber.o
+                                                  Debug/application.o
+main                                              Debug/application.o
+                                                  Debug/startup.o
+messages                                          Debug/TinyTimber.o
+msgPool                                           Debug/TinyTimber.o
+msgQ                                              Debug/TinyTimber.o
+mtable                                            Debug/TinyTimber.o
+otable                                            Debug/TinyTimber.o
+overflows                                         Debug/TinyTimber.o
+pop                                               Debug/TinyTimber.o
+push                                              Debug/TinyTimber.o
+reader                                            Debug/application.o
+receiver                                          Debug/application.o
+runAsHardware                                     Debug/TinyTimber.o
+sci0                                              Debug/application.o
+sci_init                                          Debug/sciTinyTimber.o
+                                                  Debug/application.o
+sci_interrupt                                     Debug/sciTinyTimber.o
+                                                  Debug/application.o
+sci_write                                         Debug/sciTinyTimber.o
+                                                  Debug/application.o
+sci_writechar                                     Debug/sciTinyTimber.o
+                                                  Debug/application.o
+sei                                               Debug/TinyTimber.o
+stacks                                            Debug/TinyTimber.o
+startApp                                          Debug/application.o
+startup                                           Debug/startup.o
+sync                                              Debug/TinyTimber.o
+                                                  Debug/application.o
+thread0                                           Debug/TinyTimber.o
+threadPool                                        Debug/TinyTimber.o
+threads                                           Debug/TinyTimber.o
+timerQ                                            Debug/TinyTimber.o
+timestamp                                         Debug/TinyTimber.o
+tinytimber                                        Debug/TinyTimber.o
+                                                  Debug/application.o
+upcoming                                          Debug/TinyTimber.o
+                                                  Debug/dispatch.o
+vect_CAN1                                         Debug/TinyTimber.o
+vect_EXTI9_5                                      Debug/TinyTimber.o
+vect_PendSV                                       Debug/dispatch.o
+                                                  Debug/TinyTimber.o
+vect_SVCall                                       Debug/dispatch.o
+                                                  Debug/TinyTimber.o
+vect_TIM5                                         Debug/TinyTimber.o
+vect_USART1                                       Debug/TinyTimber.o
