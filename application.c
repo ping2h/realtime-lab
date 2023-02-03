@@ -2,6 +2,7 @@
 #include "sciTinyTimber.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 typedef struct
 {
@@ -13,12 +14,19 @@ typedef struct
     int intHistory[3];
 } App;
 
+bool key = false;           // Step 6 
+
+int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
+// us
+int periods[] = {2024,1911,1803,1702,1607,1516,1431,1351,1275,1203,1136,1072,1012,955,901,851,803,758,715,675,637,601,568,536,506};
+
 App app = {initObject(), 0, 0, 0, {}, {}};
 
 void reader(App *, int);
 void receiver(App *, int);
 int median(int[], int);
 int sum(int[], int);
+void period_lookup(int);
 
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 
@@ -44,6 +52,19 @@ void reader(App *self, int c)
         self->buffer[self->index] = '\0';
         self->index = 0;
         bufferValue = atoi(self->buffer);
+        if (key)
+        {
+            // the function
+            if (bufferValue<-5 || bufferValue > 5)
+            {
+                SCI_WRITE(&sci0, " -5<=key<=5, try again!\n");
+                break;
+            }
+            
+            period_lookup(bufferValue);
+            break;
+        }
+        
         if (self->count+1 > 3)
         {
             //eliminate the oldest one and add the int to that position
@@ -61,13 +82,18 @@ void reader(App *self, int c)
         self->count = 0;
         self->index1 = 0;
         SCI_WRITE(&sci0, "The 3-history has been erased\n");
+        break;
+    case 'K':
+        SCI_WRITE(&sci0, "Please input the key(-5~5) you want:\n");
+        key = true;                             // next interger is for the key 
+        break;
 
 
     }
 }
 
 //
-//
+// 
 void sort(int *history)
 {
     int i, j, temp, m;
@@ -91,6 +117,8 @@ void sort(int *history)
     }
 }
 
+//
+//
 int median(int history[], int count)
 {
     if (count == 1)
@@ -118,6 +146,24 @@ int sum(int a[], int len) {
     
 }
 
+void period_lookup(int key){        //step 6
+    char tempBuffer[50];
+    sprintf(tempBuffer, "Key: %d\n", key);
+    SCI_WRITE(&sci0, tempBuffer);
+    int frequency_index;
+    int period;
+    for (size_t i = 0; i < 32; i++)
+    {
+        frequency_index = frequency_indices[i] + key;
+        period = periods[frequency_index+10];
+        sprintf(tempBuffer, "%d ", period);
+        SCI_WRITE(&sci0, tempBuffer);
+    }
+    SCI_WRITE(&sci0, "\n");
+    
+}
+//
+//
 void startApp(App *self, int arg)
 {
 
