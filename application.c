@@ -14,7 +14,7 @@ typedef struct
     int intHistory[3];
 } App;
 
-bool key = false;           // Step 6 
+bool keybool = false;           // Step 6 
 
 int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
 // us
@@ -52,7 +52,7 @@ void reader(App *self, int c)
         self->buffer[self->index] = '\0';
         self->index = 0;
         bufferValue = atoi(self->buffer);
-        if (key)
+        if (keybool)
         {
             // the function
             if (bufferValue<-5 || bufferValue > 5)
@@ -85,7 +85,7 @@ void reader(App *self, int c)
         break;
     case 'K':
         SCI_WRITE(&sci0, "Please input the key(-5~5) you want:\n");
-        key = true;                             // next interger is for the key 
+        keybool = true;                             // next interger is for the key 
         break;
 
 
@@ -147,11 +147,19 @@ int sum(int a[], int len) {
 }
 
 void period_lookup(int key){        //step 6
+    keybool = false;
     char tempBuffer[50];
     sprintf(tempBuffer, "Key: %d\n", key);
     SCI_WRITE(&sci0, tempBuffer);
     int frequency_index;
     int period;
+    for (size_t i = 0; i < 32; i++)
+    {
+        frequency_index = frequency_indices[i];
+        sprintf(tempBuffer, "%d ", frequency_index);
+        SCI_WRITE(&sci0, tempBuffer);
+    }
+    SCI_WRITE(&sci0, "\n");
     for (size_t i = 0; i < 32; i++)
     {
         frequency_index = frequency_indices[i] + key;
@@ -160,6 +168,7 @@ void period_lookup(int key){        //step 6
         SCI_WRITE(&sci0, tempBuffer);
     }
     SCI_WRITE(&sci0, "\n");
+    
     
 }
 //
