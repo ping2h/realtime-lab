@@ -20,12 +20,13 @@ typedef struct {
     bool lh;    // 1 or 0
     int volume;
     int mute;
+    Time deadline;
 } ToneGenerator;
 
 typedef struct {                    // step 2
     Object super;
     int background_loop_range;
-
+    Time deadline;
 } Loader;
 
 int* dac = (int *)0x4000741C;
@@ -39,17 +40,19 @@ void tick(ToneGenerator*, int);
 void upVolume(ToneGenerator*, int);
 void downVolume(ToneGenerator*, int);
 void mute(ToneGenerator*, int);
+void enableDeadlineTG(ToneGenerator*, int);
 
 void backgroundLoop(Loader*, int);
 void increaseLoad(Loader*, int);
 void decreaseLoad(Loader*, int);
+void enableDeadlineLD(Loader*, int);
 
 App app = { initObject(), 0, 'X' };
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
-ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, 0}; // 500 USEC
-Loader ld = {initObject(), 1000};
+ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, 0, USEC(100)}; // 500 USEC
+Loader ld = {initObject(), 1000, USEC(1300)};
 
 // app
 void receiver(App *self, int unused) {
@@ -93,6 +96,11 @@ void reader(App *self, int c) {
         } 
         ASYNC(&tg, mute, 0);   // ummute with no lock
         break;
+    case 'D': // deadline enable/disable
+        ASYNC(&tg, enableDeadlineTG, 0);
+        ASYNC(&ld, enableDeadlineLD, 0);
+        break;
+
     default:
         break;
     }
@@ -118,7 +126,7 @@ void tick(ToneGenerator *self, int c) {
         *dac = 0;
         self->lh = true;
     }
-    SEND(USEC(self->period/2), USEC(100), self, tick, c);   // step 2
+    SEND(USEC(self->period/2), self->deadline, self, tick, c);   // step 2
     
 }
 
@@ -158,6 +166,18 @@ void mute(ToneGenerator *self, int c) {
     
 }
 
+void enableDeadlineTG(ToneGenerator *self, int c) {
+    if (self->deadline == 0)
+    {
+        self->deadline = USEC(100);
+        SCI_WRITE(&sci0, "enable deadline\n");
+    } else {
+        self->deadline = 0;
+        SCI_WRITE(&sci0, "disable deadline\n");
+    }
+    
+}
+
 // loader
 void backgroundLoop(Loader* self, int c) {
     for (size_t i = 0; i < self->background_loop_range; i++)
@@ -165,7 +185,7 @@ void backgroundLoop(Loader* self, int c) {
         
     }
     
-    SEND(USEC(1300),USEC(1300), self, backgroundLoop, c);  // step 2 
+    SEND(USEC(1300),self->deadline, self, backgroundLoop, c);  // step 2 
 }
 
 void increaseLoad(Loader* self, int c) {
@@ -184,6 +204,15 @@ void decreaseLoad(Loader* self, int c) {
     sprintf(tempBuffer, "background loop range: %d\n", self->background_loop_range);
     SCI_WRITE(&sci0, tempBuffer);
     
+}
+
+void enableDeadlineLD(Loader *self, int c) {
+    if (self->deadline == 0)
+    {
+        self->deadline = USEC(1300);
+    } else {
+        self->deadline = 0;
+    }
 }
 
 int main() {
