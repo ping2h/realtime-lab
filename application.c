@@ -22,22 +22,34 @@ typedef struct {
     int mute;
 } ToneGenerator;
 
+typedef struct {                    // step 2
+    Object super;
+    int background_loop_range;
+
+} Loader;
+
 int* dac = (int *)0x4000741C;
 
 
 
 void reader(App*, int);
 void receiver(App*, int);
+
 void tick(ToneGenerator*, int);
 void upVolume(ToneGenerator*, int);
 void downVolume(ToneGenerator*, int);
 void mute(ToneGenerator*, int);
+
+void backgroundLoop(Loader*, int);
+void increaseLoad(Loader*, int);
+void decreaseLoad(Loader*, int);
 
 App app = { initObject(), 0, 'X' };
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, 0}; // 500 USEC
+Loader ld = {initObject(), 1000};
 
 // app
 void receiver(App *self, int unused) {
@@ -65,6 +77,12 @@ void reader(App *self, int c) {
         ASYNC(&muteVolumeSem, Wait, (int)&tg.callBlock);
         
         break;
+    case 28:  // decrease process load
+        ASYNC(&ld, decreaseLoad, 0);
+        break;
+    case 29:  // increase process load
+        ASYNC(&ld, increaseLoad, 0);
+        break;
     case 'M': //  mute/unmute
         if (!tg.mute)                                               // mute need go with lock
         {
@@ -85,6 +103,7 @@ void startApp(App *self, int arg) {
     SCI_INIT(&sci0);  // ?
     SCI_WRITE(&sci0, "Hello, hello...\n");
     tick(&tg, 0);
+    backgroundLoop(&ld, 0);
 
     
 }
@@ -139,10 +158,36 @@ void mute(ToneGenerator *self, int c) {
     
 }
 
+// loader
+void backgroundLoop(Loader* self, int c) {
+    for (size_t i = 0; i < self->background_loop_range; i++)
+    {
+        
+    }
+    
+    AFTER(0, self, backgroundLoop, c);
+}
+
+void increaseLoad(Loader* self, int c) {
+    char tempBuffer[50];
+    self->background_loop_range += 500;
+    sprintf(tempBuffer, "background loop range: %d\n", self->background_loop_range);
+    SCI_WRITE(&sci0, tempBuffer);
+}
+
+void decreaseLoad(Loader* self, int c) {
+    char tempBuffer[50];
+    if (self->background_loop_range > 500)
+    {
+        self->background_loop_range -= 500;
+    }
+    sprintf(tempBuffer, "background loop range: %d\n", self->background_loop_range);
+    SCI_WRITE(&sci0, tempBuffer);
+    
+}
 
 int main() {
     INSTALL(&sci0, sci_interrupt, SCI_IRQ0);
-	
     TINYTIMBER(&app, startApp, 0);
     return 0;
 }
