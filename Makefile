@@ -54,7 +54,8 @@ OBJECTS= $(DEBUGDIR)dispatch.o \
          $(DEBUGDIR)stm32f4xx_tim.o \
          $(DEBUGDIR)stm32f4xx_usart.o \
          $(DEBUGDIR)startup.o \
-         $(DEBUGDIR)application.o
+         $(DEBUGDIR)application.o \
+         $(DEBUGDIR)semaphore.o 
 
 ###
 ### Main target
@@ -100,9 +101,11 @@ $(DEBUGDIR)canTinyTimber.o: canTinyTimber.c canTinyTimber.h
 	$(CC) -c $< -o $@ $(CCFLAGS)
 $(DEBUGDIR)sciTinyTimber.o: sciTinyTimber.c sciTinyTimber.h
 	$(CC) -c $< -o $@ $(CCFLAGS)
+$(DEBUGDIR)semaphore.o: semaphore.c semaphore.h
+	$(CC) -c $< -o $@ $(CCFLAGS)
 
 # User-defined targets
-$(DEBUGDIR)application.o: application.c TinyTimber.h sciTinyTimber.h canTinyTimber.h
+$(DEBUGDIR)application.o: application.c TinyTimber.h sciTinyTimber.h canTinyTimber.h semaphore.h
 	$(CC) -c $< -o $@ $(CCFLAGS)
 
 ###
