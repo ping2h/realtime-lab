@@ -118,7 +118,7 @@ void tick(ToneGenerator *self, int c) {
         *dac = 0;
         self->lh = true;
     }
-    AFTER(USEC(self->period/2), self, tick, c);
+    SEND(USEC(self->period/2), USEC(100), self, tick, c);   // step 2
     
 }
 
@@ -165,7 +165,7 @@ void backgroundLoop(Loader* self, int c) {
         
     }
     
-    AFTER(0, self, backgroundLoop, c);
+    SEND(USEC(1300),USEC(1300), self, backgroundLoop, c);  // step 2 
 }
 
 void increaseLoad(Loader* self, int c) {
@@ -177,7 +177,7 @@ void increaseLoad(Loader* self, int c) {
 
 void decreaseLoad(Loader* self, int c) {
     char tempBuffer[50];
-    if (self->background_loop_range > 500)
+    if (self->background_loop_range > 0)
     {
         self->background_loop_range -= 500;
     }
