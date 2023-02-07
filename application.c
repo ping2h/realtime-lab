@@ -15,12 +15,8 @@ typedef struct
 } App;
 
 bool keybool = false;           // Step 6 
-
 int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
-// us
 int periods[] = {2024,1911,1803,1702,1607,1516,1431,1351,1275,1203,1136,1072,1012,955,901,851,803,758,715,675,637,601,568,536,506};
-
-App app = {initObject(), 0, 0, 0, {}, {}};
 
 void reader(App *, int);
 void receiver(App *, int);
@@ -28,6 +24,7 @@ int median(int[], int);
 int sum(int[], int);
 void period_lookup(int);
 
+App app = {initObject(), 0, 0, 0, {}, {}};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 
 void receiver(App *self, int unused)
@@ -54,7 +51,7 @@ void reader(App *self, int c)
         bufferValue = atoi(self->buffer);
         if (keybool)
         {
-            // the function
+            // procedure for step6
             if (bufferValue<-5 || bufferValue > 5)
             {
                 SCI_WRITE(&sci0, " -5<=key<=5, try again!\n");
@@ -85,15 +82,17 @@ void reader(App *self, int c)
         break;
     case 'K':
         SCI_WRITE(&sci0, "Please input the key(-5~5) you want:\n");
-        keybool = true;                             // next interger is for the key 
+        keybool = true;                       // next interger is saved as the key and not saved in history buffer
         break;
 
 
     }
 }
 
-//
-// 
+/* 
+ * Bubble sort
+ * helper function for median()
+ */ 
 void sort(int *history)
 {
     int i, j, temp, m;
@@ -117,8 +116,9 @@ void sort(int *history)
     }
 }
 
-//
-//
+/*
+ * function that returns the median of numbers
+ */
 int median(int history[], int count)
 {
     if (count == 1)
@@ -136,6 +136,14 @@ int median(int history[], int count)
     }
 }
 
+/* 
+ * sum the integers in the queue 
+ * 
+ * parameters: a[] is the history buffer, len is length of the buffer 
+ * 
+ * return the sum 
+ * 
+ */
 int sum(int a[], int len) {
     int sum = 0;
     for (size_t i = 0; i < len; i++)
@@ -146,6 +154,12 @@ int sum(int a[], int len) {
     
 }
 
+/* 
+ * takes the key as input from the keyboard (in the form of an integer number) and prints the 
+ * periods corresponding to the 32 frequency indices of the Brother John melody
+ * for the input key.
+ * 
+ * */
 void period_lookup(int key){        //step 6
     keybool = false;
     char tempBuffer[50];
@@ -171,8 +185,7 @@ void period_lookup(int key){        //step 6
     
     
 }
-//
-//
+
 void startApp(App *self, int arg)
 {
 
