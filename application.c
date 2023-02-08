@@ -5,7 +5,22 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "semaphore.h"  // semaphore
+#define TRUE 1
+#define FALSE 0
 
+/* 
+ * D : enable/disable deadline
+ *
+ * M: mute/unmute
+ *
+ * up arrow: increase volume
+ * 
+ * down arrow: decrease volume
+ * 
+ * left arrow: decrease background load
+ *
+ * right arrow: increase background load
+ */
 
 typedef struct {
     Object super;
@@ -41,6 +56,8 @@ void upVolume(ToneGenerator*, int);
 void downVolume(ToneGenerator*, int);
 void mute(ToneGenerator*, int);
 void enableDeadlineTG(ToneGenerator*, int);
+void lockRequest(ToneGenerator*, int);
+int  checkMuted(ToneGenerator*, int);
 
 void backgroundLoop(Loader*, int);
 void increaseLoad(Loader*, int);
@@ -51,7 +68,7 @@ App app = { initObject(), 0, 'X' };
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
-ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, 0, USEC(100)}; // 500 USEC 650USEC 931USEC
+ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100)}; // 500 USEC 650USEC 931USEC
 Loader ld = {initObject(), 1000, USEC(1300)};
 
 // app
@@ -70,15 +87,10 @@ void reader(App *self, int c) {
     switch (c)
     {
     case 30:   //up
-        tg.callBlock.obj = &tg;
-        tg.callBlock.meth = upVolume;
-        ASYNC(&muteVolumeSem, Wait, (int)&tg.callBlock);
+        ASYNC(&tg, lockRequest, (int)upVolume);
         break;
     case 31:  //down
-        tg.callBlock.obj = &tg;
-        tg.callBlock.meth = downVolume;
-        ASYNC(&muteVolumeSem, Wait, (int)&tg.callBlock);
-        
+        ASYNC(&tg, lockRequest, (int)downVolume);
         break;
     case 28:  // decrease process load
         ASYNC(&ld, decreaseLoad, 0);
@@ -87,14 +99,13 @@ void reader(App *self, int c) {
         ASYNC(&ld, increaseLoad, 0);
         break;
     case 'M': //  mute/unmute
-        if (!tg.mute)                                               // mute need go with lock
+        if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
         {
-            tg.callBlock.obj = &tg;
-            tg.callBlock.meth = mute;
-            ASYNC(&muteVolumeSem, Wait, (int)&tg.callBlock);
-            break; 
-        } 
-        ASYNC(&tg, mute, 0);   // ummute with no lock
+            ASYNC(&tg, lockRequest, (int)mute);
+        } else {
+            ASYNC(&tg, mute, 0);  
+        }
+         
         break;
     case 'D': // deadline enable/disable
         ASYNC(&tg, enableDeadlineTG, 0);
@@ -110,10 +121,9 @@ void startApp(App *self, int arg) {
 
     SCI_INIT(&sci0);  // ?
     SCI_WRITE(&sci0, "Hello, hello...\n");
-    tick(&tg, 0);
-    backgroundLoop(&ld, 0);
+    ASYNC(&tg, tick, 0);                   // follow correct paradigm
+    ASYNC(&ld, backgroundLoop, 0);        //
 
-    
 }
 
 // tone generator
@@ -159,7 +169,7 @@ void mute(ToneGenerator *self, int c) {
         SCI_WRITE(&sci0, "muted\n");
     } else {
         self->volume = self->mute;
-        self->mute = 0;
+        self->mute = FALSE;
         SCI_WRITE(&sci0, "unmuted\n");
         ASYNC(&muteVolumeSem, Signal, 0);    //  realse lock
     }
@@ -176,6 +186,23 @@ void enableDeadlineTG(ToneGenerator *self, int c) {
         SCI_WRITE(&sci0, "disable deadline\n");
     }
     
+}
+
+void lockRequest(ToneGenerator* self, int c) {
+    self->callBlock.obj = self;
+    self->callBlock.meth = (Method)c;
+    ASYNC(&muteVolumeSem, Wait, (int)&self->callBlock);
+    SCI_WRITE(&sci0, "lock\n");
+}
+
+
+int checkMuted(ToneGenerator* self, int c) {
+    if (!self->mute)
+    {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
 }
 
 // loader
