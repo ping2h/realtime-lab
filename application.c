@@ -3,6 +3,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+/* 
+ * F : input F to erase the buffer
+ *
+ * K : input K to indicate the next number will be used as key and print out the frequency indexs and periods 
+ *
+ * e: end every number with e
+*/
 
 typedef struct
 {
@@ -23,6 +30,8 @@ void receiver(App *, int);
 int median(int[], int);
 int sum(int[], int);
 void period_lookup(int);
+
+void printhist(int[], int);
 
 App app = {initObject(), 0, 0, 0, {}, {}};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
@@ -65,14 +74,17 @@ void reader(App *self, int c)
         if (self->count+1 > 3)
         {
             //eliminate the oldest one and add the int to that position
-            self->index1 = (self->index1 + 1) % 3;
+            self->index1 = (self->index1) % 3;
             self->intHistory[self->index1] = bufferValue;
-        }
+            self->count = 2;
+        } 
         // <=3
         self->intHistory[self->index1] = bufferValue;
         self->index1++;
         self->count++;
+        // printhist(self->intHistory, self->count);  
         sprintf(tempBuffer, "Entered integer: %d, sum = %d, median = %d\n", bufferValue, sum(self->intHistory, self->count), median(self->intHistory, self->count));
+        // printhist(self->intHistory,self->count);
         SCI_WRITE(&sci0, tempBuffer);
         break;
     case 'F':
@@ -88,6 +100,19 @@ void reader(App *self, int c)
 
     }
 }
+
+// debug
+
+// void printhist(int a[], int cout) {
+//     char tempBuffer[50];
+//     for (size_t i = 0; i < cout; i++)
+//     {
+//         sprintf(tempBuffer, "in buffer %d:%d \n",i, a[i]);
+//         SCI_WRITE(&sci0, tempBuffer);
+//     }
+    
+    
+// }
 
 /* 
  * Bubble sort
@@ -121,6 +146,7 @@ void sort(int *history)
  */
 int median(int history[], int count)
 {
+    int history1[3];
     if (count == 1)
     {
         return history[0];
@@ -131,8 +157,11 @@ int median(int history[], int count)
     }
     else
     {
-        sort(history);
-        return history[1];
+        history1[0] = history[0];
+        history1[1] = history[1];
+        history1[2] = history[2];
+        sort(history1);
+        return history1[1];
     }
 }
 
