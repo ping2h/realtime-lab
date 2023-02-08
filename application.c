@@ -51,7 +51,7 @@ App app = { initObject(), 0, 'X' };
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
-ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, 0, USEC(100)}; // 500 USEC
+ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, 0, USEC(100)}; // 500 USEC 650USEC 931USEC
 Loader ld = {initObject(), 1000, USEC(1300)};
 
 // app
@@ -126,7 +126,7 @@ void tick(ToneGenerator *self, int c) {
         *dac = 0;
         self->lh = true;
     }
-    SEND(USEC(self->period/2), self->deadline, self, tick, c);   // step 2
+    SEND(USEC(self->period), self->deadline, self, tick, c);   // step 2
     
 }
 
