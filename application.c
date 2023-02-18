@@ -37,6 +37,7 @@ typedef struct {
     int volume;
     int mute;
     Time deadline;
+    bool muted;
 } ToneGenerator;
 
 
@@ -79,7 +80,7 @@ App app = { initObject(), 0 };
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
-ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100)}; // 500 USEC 650USEC 931USEC
+ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false}; // 500 USEC 650USEC 931USEC
 MusicPlayer mp = {initObject(), 0, 120, 0};
 
 
@@ -215,10 +216,12 @@ void mute(ToneGenerator *self, int c) {
     if(!self->mute) {
         self->mute = self->volume;
         self->volume = 0;
+        self->muted = true;
         SCI_WRITE(&sci0, "muted\n");
     } else {
         self->volume = self->mute;
         self->mute = FALSE;
+        self->muted = false;
         SCI_WRITE(&sci0, "unmuted\n");
         ASYNC(&muteVolumeSem, Signal, 0);    //  realse lock
     }
@@ -254,13 +257,19 @@ int checkMuted(ToneGenerator* self, int c) {
 }
 
 void muteGap(ToneGenerator* self, int c) {
-    self->mute = self->volume;
-    self->volume = 0;
+    if(!self->muted) {
+        self->mute = self->volume;
+        self->volume = 0;
+    }
 }
+    
 
 void unMuteGap(ToneGenerator* self, int c) {
-    self->volume = self->mute;
-    self->mute = FALSE;
+    if(!self->muted) {
+        self->volume = self->mute;
+        self->mute = FALSE;
+    }
+    
 }
 
 void changeTone(ToneGenerator* self, int c) {
