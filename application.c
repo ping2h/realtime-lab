@@ -25,7 +25,8 @@
 typedef struct {
     Object super;
     int count;
-    char c;
+    int index;
+    char buffer[50];
 } App;
 
 typedef struct {
@@ -38,21 +39,21 @@ typedef struct {
     Time deadline;
 } ToneGenerator;
 
-typedef struct {                    
-    Object super;
-    int background_loop_range;
-    Time deadline;
-} Loader;
 
-// typedef struct {
-//     Time start;
-//     Time totalMeasuredTime;
-//     Time largestMeasuredTime;
-//     int timeSamples;
-// } WCETSampler;
+typedef struct {
+    Object super;
+    int key;
+    int tempo;
+    int frequency_index;
+} MusicPlayer;
 
 
 int* dac = (int *)0x4000741C;
+int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
+int periods[] = {2024,1911,1803,1702,1607,1516,1431,1351,1275,1203,1136,1072,1012,955,901,851,803,758,715,675,637,601,568,536,506};
+bool keybool = false;  
+bool tempobool = false;
+
 
 ///////////////////////////////////////////////////////////
 void reader(App*, int);
@@ -65,24 +66,23 @@ void mute(ToneGenerator*, int);
 void enableDeadlineTG(ToneGenerator*, int);
 void lockRequest(ToneGenerator*, int);
 int  checkMuted(ToneGenerator*, int);
+void muteGap(ToneGenerator*, int);
+void unMuteGap(ToneGenerator*, int);
+void changeTone(ToneGenerator*, int);
 
-void backgroundLoop(Loader*, int);
-void increaseLoad(Loader*, int);
-void decreaseLoad(Loader*, int);
-void enableDeadlineLD(Loader*, int);
-
-void wcetBegin(WCETSampler*);
-void wcetEnd(WCETSampler*);
+void play(MusicPlayer*, int);
+void changeKey(MusicPlayer*, int);
+void changeTempo(MusicPlayer*, int);
 
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0, 'X' };
+App app = { initObject(), 0 };
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100)}; // 500 USEC 650USEC 931USEC
-Loader ld = {initObject(), 1000, USEC(1300)};
-WCETSampler wcettg = {0,0,0,0};
-WCETSampler wcetld = {0,0,0,0};
+MusicPlayer mp = {initObject(), 0, 120, 0};
+
+
 
 ///////////////////////////////////////////////////////////
 // app
@@ -94,23 +94,55 @@ void receiver(App *self, int unused) {
 }
 
 void reader(App *self, int c) {
-    
+    int bufferValue;
+    char tempBuffer[50];
     SCI_WRITE(&sci0, "Rcv: \'");
     SCI_WRITECHAR(&sci0, c);
     SCI_WRITE(&sci0, "\'\n");
     switch (c)
     {
+    case '0' ... '9':
+    case '-':
+        self->buffer[self->index++] = c;
+        break;
+    case 'e':
+        self->buffer[self->index] = '\0';
+        self->index = 0;
+        bufferValue = atoi(self->buffer);
+        sprintf(tempBuffer, "Entered integer: %d \n", bufferValue);
+        SCI_WRITE(&sci0, tempBuffer);
+        if (keybool) {
+            if (bufferValue<-5 || bufferValue > 5)
+            {
+                SCI_WRITE(&sci0, " -5<=key<=5, try again!\n");
+                break;
+            }
+            ASYNC(&mp, changeKey, bufferValue);
+            break;
+        }
+        if (tempobool) {
+            if (bufferValue< 60 || bufferValue > 240)
+            {
+                SCI_WRITE(&sci0, " 60<=tempo<=240, try again!\n");
+                break;
+            }
+            ASYNC(&mp, changeTempo, bufferValue);
+            break;
+        }
+        break;
     case 30:   //up
         ASYNC(&tg, lockRequest, (int)upVolume);
         break;
     case 31:  //down
         ASYNC(&tg, lockRequest, (int)downVolume);
         break;
-    case 28:  // decrease process load
-        ASYNC(&ld, decreaseLoad, 0);
+    case 'K':  // change key
+        SCI_WRITE(&sci0, "Please input the key(-5~5) you want:\n");
+        keybool = true;                       // next input interger is saved as the key 
         break;
-    case 29:  // increase process load
-        ASYNC(&ld, increaseLoad, 0);
+    case 'T':  // change Tempo
+        SCI_WRITE(&sci0, "Please input the tempo(60~240) you want:\n");
+        tempobool = true;                       // next input interger is saved as the tempo
         break;
     case 'M': //  mute/unmute
         if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
@@ -122,8 +154,6 @@ void reader(App *self, int c) {
          
         break;
     case 'D': // deadline enable/disable
-        ASYNC(&tg, enableDeadlineTG, 0);
-        ASYNC(&ld, enableDeadlineLD, 0);
         break;
 
     default:
@@ -135,8 +165,8 @@ void startApp(App *self, int arg) {
 
     SCI_INIT(&sci0);  // ?
     SCI_WRITE(&sci0, "Hello, hello...\n");
-    ASYNC(&tg, tick, 0);                   // follow correct paradigm
-    ASYNC(&ld, backgroundLoop, 0);        
+    ASYNC(&tg, tick, 0);                   // follow correct paradigm   
+    ASYNC(&mp, play, 0); 
 
 }
 
@@ -223,73 +253,52 @@ int checkMuted(ToneGenerator* self, int c) {
     }
 }
 
-///////////////////////////////////////////////////////////
-// loader
-void backgroundLoop(Loader* self, int c) {
-    for (size_t i = 0; i < self->background_loop_range; i++)
-    {
-        
-    }
-    SEND(USEC(1300),self->deadline, self, backgroundLoop, c);  // step 2 
+void muteGap(ToneGenerator* self, int c) {
+    self->mute = self->volume;
+    self->volume = 0;
 }
 
-void increaseLoad(Loader* self, int c) {
-    char tempBuffer[50];
-    self->background_loop_range += 500;
-    sprintf(tempBuffer, "background loop range: %d\n", self->background_loop_range);
-    SCI_WRITE(&sci0, tempBuffer);
+void unMuteGap(ToneGenerator* self, int c) {
+    self->volume = self->mute;
+    self->mute = FALSE;
 }
 
-void decreaseLoad(Loader* self, int c) {
-    char tempBuffer[50];
-    if (self->background_loop_range > 0)
-    {
-        self->background_loop_range -= 500;
-    }
-    sprintf(tempBuffer, "background loop range: %d\n", self->background_loop_range);
-    SCI_WRITE(&sci0, tempBuffer);
-    
+void changeTone(ToneGenerator* self, int c) {
+    self->period = c;
 }
 
-void enableDeadlineLD(Loader *self, int c) {
-    if (self->deadline == 0)
-    {
-        self->deadline = USEC(1300);
-    } else {
-        self->deadline = 0;
-    }
-}
+
+
+
 
 ///////////////////////////////////////////////////////////
-// void wcetBegin(WCETSampler* self) {
-//     self->start = CURRENT_OFFSET();
-// }
+// music player
+void play(MusicPlayer* self, int c) {
+    int frequency_index;
+    int period;
+    if (self->frequency_index==32){
+        self->frequency_index = 0;
+    }
+    SYNC(&tg, muteGap, 0);
+    frequency_index = frequency_indices[self->frequency_index] + self->key;
+    period = periods[frequency_index+10];
+    self->frequency_index++;
+    SYNC(&tg, changeTone, period);
+    AFTER(MSEC(50), &tg, unMuteGap, 0);
+    SEND(MSEC(60000 / self->tempo), USEC(100), self, play, 0);
+}
 
-// void wcetEnd(WCETSampler* self) {
-//     Time end = CURRENT_OFFSET();
-//     if(self->timeSamples < 500) {
-//         self->timeSamples += 1;
+void changeKey(MusicPlayer* self, int c) {
+    keybool = false;
+    self->key = c;
+}
 
-//         Time elapsed = end - self->start;
-//         self->totalMeasuredTime += elapsed;
-//         if(elapsed > self->largestMeasuredTime) {
-//             self->largestMeasuredTime = elapsed;
-//         }
-//     } else {
-//         if (self->timeSamples == 500) {
-//             const int STRLEN = 100;
-//             char s[STRLEN];
-            
-//             long worst = USEC_OF(self->largestMeasuredTime);
-//             long average = USEC_OF(self->totalMeasuredTime) / self->timeSamples;
+void changeTempo(MusicPlayer* self, int c) {
+    tempobool = false;
+    self->tempo = c;
+}
+///////////////////////////////////////////////////////////
 
-//             snprintf(s, STRLEN, "Worst: %ld\nAverage: %ld\nSamples: %d",  worst, average, self->timeSamples);
-//             SCI_WRITE(&sci0, s);
-
-//             self->timeSamples += 1;
-//         }
-//     }
-// }
 
 ///////////////////////////////////////////////////////////
 int main() {
