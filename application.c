@@ -44,10 +44,17 @@ typedef struct {                    // step 2
     Time deadline;
 } Loader;
 
+typedef struct {
+    Time start;
+    Time totalMeasuredTime;
+    Time largestMeasuredTime;
+    int timeSamples;
+} WCETSampler;
+
+
 int* dac = (int *)0x4000741C;
 
-
-
+///////////////////////////////////////////////////////////
 void reader(App*, int);
 void receiver(App*, int);
 
@@ -64,13 +71,20 @@ void increaseLoad(Loader*, int);
 void decreaseLoad(Loader*, int);
 void enableDeadlineLD(Loader*, int);
 
+void wcetBegin(WCETSampler*);
+void wcetEnd(WCETSampler*);
+
+///////////////////////////////////////////////////////////
 App app = { initObject(), 0, 'X' };
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100)}; // 500 USEC 650USEC 931USEC
 Loader ld = {initObject(), 1000, USEC(1300)};
+WCETSampler wcettg = {0,0,0,0};
+WCETSampler wcetld = {0,0,0,0};
 
+///////////////////////////////////////////////////////////
 // app
 void receiver(App *self, int unused) {
     CANMsg msg;
@@ -122,13 +136,17 @@ void startApp(App *self, int arg) {
     SCI_INIT(&sci0);  // ?
     SCI_WRITE(&sci0, "Hello, hello...\n");
     ASYNC(&tg, tick, 0);                   // follow correct paradigm
-    ASYNC(&ld, backgroundLoop, 0);        //
+    // ASYNC(&ld, backgroundLoop, 0);        //
 
 }
 
+///////////////////////////////////////////////////////////
 // tone generator
 void tick(ToneGenerator *self, int c) {
-    if (self->lh)   
+    wcetBegin(&wcettg);
+    for (size_t i = 0; i < 100; i++)
+    {
+         if (self->lh)   
     {
         *dac = self->volume;
         self->lh = false;
@@ -136,7 +154,12 @@ void tick(ToneGenerator *self, int c) {
         *dac = 0;
         self->lh = true;
     }
+    }
+    
+   
+    wcetEnd(&wcettg);
     SEND(USEC(self->period), self->deadline, self, tick, c);   // step 2
+    
     
 }
 
@@ -192,7 +215,6 @@ void lockRequest(ToneGenerator* self, int c) {
     self->callBlock.obj = self;
     self->callBlock.meth = (Method)c;
     ASYNC(&muteVolumeSem, Wait, (int)&self->callBlock);
-    SCI_WRITE(&sci0, "lock\n");
 }
 
 
@@ -205,13 +227,15 @@ int checkMuted(ToneGenerator* self, int c) {
     }
 }
 
+///////////////////////////////////////////////////////////
 // loader
 void backgroundLoop(Loader* self, int c) {
+    // wcetBegin(&wcetld);
     for (size_t i = 0; i < self->background_loop_range; i++)
     {
         
     }
-    
+    // wcetEnd(&wcetld);
     SEND(USEC(1300),self->deadline, self, backgroundLoop, c);  // step 2 
 }
 
@@ -242,6 +266,38 @@ void enableDeadlineLD(Loader *self, int c) {
     }
 }
 
+///////////////////////////////////////////////////////////
+void wcetBegin(WCETSampler* self) {
+    self->start = CURRENT_OFFSET();
+}
+
+void wcetEnd(WCETSampler* self) {
+    Time end = CURRENT_OFFSET();
+    if(self->timeSamples < 500) {
+        self->timeSamples += 1;
+
+        Time elapsed = end - self->start;
+        self->totalMeasuredTime += elapsed;
+        if(elapsed > self->largestMeasuredTime) {
+            self->largestMeasuredTime = elapsed;
+        }
+    } else {
+        if (self->timeSamples == 500) {
+            const int STRLEN = 100;
+            char s[STRLEN];
+            
+            long worst = USEC_OF(self->largestMeasuredTime);
+            long average = USEC_OF(self->totalMeasuredTime) / self->timeSamples;
+
+            snprintf(s, STRLEN, "Worst: %ld\nAverage: %ld\nSamples: %d",  worst, average, self->timeSamples);
+            SCI_WRITE(&sci0, s);
+
+            self->timeSamples += 1;
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////
 int main() {
     INSTALL(&sci0, sci_interrupt, SCI_IRQ0);
     TINYTIMBER(&app, startApp, 0);
