@@ -38,18 +38,18 @@ typedef struct {
     Time deadline;
 } ToneGenerator;
 
-typedef struct {                    // step 2
+typedef struct {                    
     Object super;
     int background_loop_range;
     Time deadline;
 } Loader;
 
-typedef struct {
-    Time start;
-    Time totalMeasuredTime;
-    Time largestMeasuredTime;
-    int timeSamples;
-} WCETSampler;
+// typedef struct {
+//     Time start;
+//     Time totalMeasuredTime;
+//     Time largestMeasuredTime;
+//     int timeSamples;
+// } WCETSampler;
 
 
 int* dac = (int *)0x4000741C;
@@ -136,14 +136,13 @@ void startApp(App *self, int arg) {
     SCI_INIT(&sci0);  // ?
     SCI_WRITE(&sci0, "Hello, hello...\n");
     ASYNC(&tg, tick, 0);                   // follow correct paradigm
-    // ASYNC(&ld, backgroundLoop, 0);        //
+    ASYNC(&ld, backgroundLoop, 0);        
 
 }
 
 ///////////////////////////////////////////////////////////
 // tone generator
 void tick(ToneGenerator *self, int c) {
-    wcetBegin(&wcettg);
     for (size_t i = 0; i < 100; i++)
     {
          if (self->lh)   
@@ -155,9 +154,6 @@ void tick(ToneGenerator *self, int c) {
         self->lh = true;
     }
     }
-    
-   
-    wcetEnd(&wcettg);
     SEND(USEC(self->period), self->deadline, self, tick, c);   // step 2
     
     
@@ -230,12 +226,10 @@ int checkMuted(ToneGenerator* self, int c) {
 ///////////////////////////////////////////////////////////
 // loader
 void backgroundLoop(Loader* self, int c) {
-    // wcetBegin(&wcetld);
     for (size_t i = 0; i < self->background_loop_range; i++)
     {
         
     }
-    // wcetEnd(&wcetld);
     SEND(USEC(1300),self->deadline, self, backgroundLoop, c);  // step 2 
 }
 
@@ -267,35 +261,35 @@ void enableDeadlineLD(Loader *self, int c) {
 }
 
 ///////////////////////////////////////////////////////////
-void wcetBegin(WCETSampler* self) {
-    self->start = CURRENT_OFFSET();
-}
+// void wcetBegin(WCETSampler* self) {
+//     self->start = CURRENT_OFFSET();
+// }
 
-void wcetEnd(WCETSampler* self) {
-    Time end = CURRENT_OFFSET();
-    if(self->timeSamples < 500) {
-        self->timeSamples += 1;
+// void wcetEnd(WCETSampler* self) {
+//     Time end = CURRENT_OFFSET();
+//     if(self->timeSamples < 500) {
+//         self->timeSamples += 1;
 
-        Time elapsed = end - self->start;
-        self->totalMeasuredTime += elapsed;
-        if(elapsed > self->largestMeasuredTime) {
-            self->largestMeasuredTime = elapsed;
-        }
-    } else {
-        if (self->timeSamples == 500) {
-            const int STRLEN = 100;
-            char s[STRLEN];
+//         Time elapsed = end - self->start;
+//         self->totalMeasuredTime += elapsed;
+//         if(elapsed > self->largestMeasuredTime) {
+//             self->largestMeasuredTime = elapsed;
+//         }
+//     } else {
+//         if (self->timeSamples == 500) {
+//             const int STRLEN = 100;
+//             char s[STRLEN];
             
-            long worst = USEC_OF(self->largestMeasuredTime);
-            long average = USEC_OF(self->totalMeasuredTime) / self->timeSamples;
+//             long worst = USEC_OF(self->largestMeasuredTime);
+//             long average = USEC_OF(self->totalMeasuredTime) / self->timeSamples;
 
-            snprintf(s, STRLEN, "Worst: %ld\nAverage: %ld\nSamples: %d",  worst, average, self->timeSamples);
-            SCI_WRITE(&sci0, s);
+//             snprintf(s, STRLEN, "Worst: %ld\nAverage: %ld\nSamples: %d",  worst, average, self->timeSamples);
+//             SCI_WRITE(&sci0, s);
 
-            self->timeSamples += 1;
-        }
-    }
-}
+//             self->timeSamples += 1;
+//         }
+//     }
+// }
 
 ///////////////////////////////////////////////////////////
 int main() {
