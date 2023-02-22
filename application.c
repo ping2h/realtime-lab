@@ -4,23 +4,24 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include "semaphore.h"  // semaphore
+#include "semaphore.h"  
 #define TRUE 1
 #define FALSE 0
 
 /* 
- * D : enable/disable deadline
+ * K: change key
  *
  * M: mute/unmute
  *
+ * T: change tempo
+ * 
  * up arrow: increase volume
  * 
  * down arrow: decrease volume
  * 
- * left arrow: decrease background load
- *
- * right arrow: increase background load
+ * Integer: end with 'e'
  */
+
 
 typedef struct {
     Object super;
@@ -48,7 +49,7 @@ typedef struct {
     int frequency_index;
 } MusicPlayer;
 
-
+///////////////////////////////////////////////////////////
 int* dac = (int *)0x4000741C;
 int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
 int periods[] = {2024,1911,1803,1702,1607,1516,1431,1351,1275,1203,1136,1072,1012,955,901,851,803,758,715,675,637,601,568,536,506};
@@ -64,7 +65,6 @@ void tick(ToneGenerator*, int);
 void upVolume(ToneGenerator*, int);
 void downVolume(ToneGenerator*, int);
 void mute(ToneGenerator*, int);
-void enableDeadlineTG(ToneGenerator*, int);
 void lockRequest(ToneGenerator*, int);
 int  checkMuted(ToneGenerator*, int);
 void muteGap(ToneGenerator*, int);
@@ -112,6 +112,7 @@ void reader(App *self, int c) {
         bufferValue = atoi(self->buffer);
         sprintf(tempBuffer, "Entered integer: %d \n", bufferValue);
         SCI_WRITE(&sci0, tempBuffer);
+        // change key 
         if (keybool) {
             if (bufferValue<-5 || bufferValue > 5)
             {
@@ -121,6 +122,7 @@ void reader(App *self, int c) {
             ASYNC(&mp, changeKey, bufferValue);
             break;
         }
+        // change tempo
         if (tempobool) {
             if (bufferValue< 60 || bufferValue > 240)
             {
@@ -154,9 +156,6 @@ void reader(App *self, int c) {
         }
          
         break;
-    case 'D': // deadline enable/disable
-        break;
-
     default:
         break;
     }
@@ -166,7 +165,7 @@ void startApp(App *self, int arg) {
 
     SCI_INIT(&sci0);  // ?
     SCI_WRITE(&sci0, "Hello, hello...\n");
-    ASYNC(&tg, tick, 0);                   // follow correct paradigm   
+    ASYNC(&tg, tick, 0);                   
     ASYNC(&mp, play, 0); 
 
 }
@@ -174,9 +173,8 @@ void startApp(App *self, int arg) {
 ///////////////////////////////////////////////////////////
 // tone generator
 void tick(ToneGenerator *self, int c) {
-    for (size_t i = 0; i < 100; i++)
-    {
-         if (self->lh)   
+    
+    if (self->lh)   
     {
         *dac = self->volume;
         self->lh = false;
@@ -184,15 +182,15 @@ void tick(ToneGenerator *self, int c) {
         *dac = 0;
         self->lh = true;
     }
-    }
-    SEND(USEC(self->period), self->deadline, self, tick, c);   // step 2
+    
+    SEND(USEC(self->period), self->deadline, self, tick, c);   
     
     
 }
 
 void upVolume(ToneGenerator *self, int c) {
     char tempBuffer[50];
-    if (self->volume < 25)
+    if (self->volume < 50)
     {
         self->volume++;
     }
@@ -228,17 +226,6 @@ void mute(ToneGenerator *self, int c) {
     
 }
 
-void enableDeadlineTG(ToneGenerator *self, int c) {
-    if (self->deadline == 0)
-    {
-        self->deadline = USEC(100);
-        SCI_WRITE(&sci0, "enable deadline\n");
-    } else {
-        self->deadline = 0;
-        SCI_WRITE(&sci0, "disable deadline\n");
-    }
-    
-}
 
 void lockRequest(ToneGenerator* self, int c) {
     self->callBlock.obj = self;
@@ -277,9 +264,6 @@ void changeTone(ToneGenerator* self, int c) {
 }
 
 
-
-
-
 ///////////////////////////////////////////////////////////
 // music player
 void play(MusicPlayer* self, int c) {
@@ -306,7 +290,7 @@ void changeTempo(MusicPlayer* self, int c) {
     tempobool = false;
     self->tempo = c;
 }
-///////////////////////////////////////////////////////////
+
 
 
 ///////////////////////////////////////////////////////////
