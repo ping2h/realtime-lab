@@ -53,6 +53,10 @@ typedef struct {
 int* dac = (int *)0x4000741C;
 int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
 int periods[] = {2024,1911,1803,1702,1607,1516,1431,1351,1275,1203,1136,1072,1012,955,901,851,803,758,715,675,637,601,568,536,506};
+char tempos[] = {'a','a','a','a','a','a','a','a','a','a',
+                'b','a','a','b','c','c','c','c','a','a',
+                'c','c','c','c','a','a','a','a','b','a',
+                'a','b'};
 bool keybool = false;  
 bool tempobool = false;
 
@@ -269,8 +273,16 @@ void changeTone(ToneGenerator* self, int c) {
 void play(MusicPlayer* self, int c) {
     int frequency_index;
     int period;
+    double tempoFactor;
     if (self->frequency_index==32){
         self->frequency_index = 0;
+    }
+    if (tempos[self->frequency_index] == 'b') {
+        tempoFactor = 2.0;
+    } else if (tempos[self->frequency_index] == 'c'){
+        tempoFactor = 0.5;
+    } else {
+        tempoFactor = 1.0;
     }
     SYNC(&tg, muteGap, 0);
     frequency_index = frequency_indices[self->frequency_index] + self->key;
@@ -278,7 +290,7 @@ void play(MusicPlayer* self, int c) {
     self->frequency_index++;
     SYNC(&tg, changeTone, period);
     AFTER(MSEC(50), &tg, unMuteGap, 0);
-    SEND(MSEC(60000 / self->tempo), USEC(100), self, play, 0);
+    SEND(MSEC((int)60000 / self->tempo * tempoFactor), USEC(100), self, play, 0);
 }
 
 void changeKey(MusicPlayer* self, int c) {
