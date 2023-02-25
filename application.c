@@ -9,6 +9,8 @@
 #define FALSE 0
 
 /* 
+ * S: start/stop the playing of melody
+ * 
  * K: change key
  *
  * M: mute/unmute
@@ -47,6 +49,7 @@ typedef struct {
     int key;
     int tempo;
     int frequency_index;
+    int start;
 } MusicPlayer;
 
 ///////////////////////////////////////////////////////////
@@ -78,6 +81,9 @@ void changeTone(ToneGenerator*, int);
 void play(MusicPlayer*, int);
 void changeKey(MusicPlayer*, int);
 void changeTempo(MusicPlayer*, int);
+int checkStart(MusicPlayer*, int);
+void start(MusicPlayer*, int);
+void stop(MusicPlayer*, int);
 
 ///////////////////////////////////////////////////////////
 App app = { initObject(), 0 };
@@ -85,7 +91,7 @@ Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false}; // 500 USEC 650USEC 931USEC
-MusicPlayer mp = {initObject(), 0, 120, 0};
+MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
 
 
 
@@ -160,15 +166,34 @@ void reader(App *self, int c) {
         }
          
         break;
+    case 'S':
+        if(SYNC(&mp, checkStart, 0)) {
+            ASYNC(&mp, stop, 0);
+        } else {
+            ASYNC(&mp, start, 0);
+        }
     default:
         break;
     }
 }
 
 void startApp(App *self, int arg) {
-
-    SCI_INIT(&sci0);  // ?
+    CANMsg msg;
+    
+    SCI_INIT(&sci0); 
+    CAN_INIT(&can0); 
     SCI_WRITE(&sci0, "Hello, hello...\n");
+
+    msg.msgId = 1;
+    msg.nodeId = 1;
+    msg.length = 6;
+    msg.buff[0] = 'H';
+    msg.buff[1] = 'e';
+    msg.buff[2] = 'l';
+    msg.buff[3] = 'l';
+    msg.buff[4] = 'o';
+    msg.buff[5] = 0;
+    CAN_SEND(&can0, &msg);
     ASYNC(&tg, tick, 0);                   
     ASYNC(&mp, play, 0); 
 
@@ -274,6 +299,7 @@ void play(MusicPlayer* self, int c) {
     int frequency_index;
     int period;
     double tempoFactor;
+    
     if (self->frequency_index==32){
         self->frequency_index = 0;
     }
@@ -303,11 +329,35 @@ void changeTempo(MusicPlayer* self, int c) {
     self->tempo = c;
 }
 
+int checkStart(MusicPlayer* self, int c) {
+    return self->start;
+}
 
+void start(MusicPlayer* self, int c) {
+    self->start = TRUE;
+    self->frequency_index = 0;
+    if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
+        {
+            ASYNC(&tg, lockRequest, (int)mute);
+        } else {
+            ASYNC(&tg, mute, 0);  
+        }
+}
 
+void stop(MusicPlayer* self, int c) {
+    self->start = FALSE;
+    if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
+        {
+            ASYNC(&tg, lockRequest, (int)mute);
+        } else {
+            ASYNC(&tg, mute, 0);  
+        }
+    
+}
 ///////////////////////////////////////////////////////////
 int main() {
     INSTALL(&sci0, sci_interrupt, SCI_IRQ0);
+    INSTALL(&can0, can_interrupt, CAN_IRQ0);
     TINYTIMBER(&app, startApp, 0);
     return 0;
 }
