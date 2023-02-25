@@ -29,9 +29,9 @@
 
 typedef struct {
     Object super;
-    int count;
     int index;
     char buffer[50];
+    int mod;
 } App;
 
 typedef struct {
@@ -52,7 +52,7 @@ typedef struct {
     int tempo;
     int frequency_index;
     int start;
-    int mod;
+    
 } MusicPlayer;
 
 ///////////////////////////////////////////////////////////
@@ -71,6 +71,7 @@ bool tempobool = false;
 void reader(App*, int);
 void receiver(App*, int);
 
+
 void tick(ToneGenerator*, int);
 void upVolume(ToneGenerator*, int);
 void downVolume(ToneGenerator*, int);
@@ -87,15 +88,14 @@ void changeTempo(MusicPlayer*, int);
 int checkStart(MusicPlayer*, int);
 void start(MusicPlayer*, int);
 void stop(MusicPlayer*, int);
-int  returnMod(MusicPlayer*, int);
 
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0 };
+App app = { initObject(), 0 , {}, CONDUCTOER};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false}; // 500 USEC 650USEC 931USEC
-MusicPlayer mp = {initObject(), 0, 120, 0, TRUE, CONDUCTOER};
+MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
 
 
 
@@ -105,29 +105,70 @@ void receiver(App *self, int unused) {
     CANMsg msg;
     CAN_RECEIVE(&can0, &msg);
     char tempBuffer[50];
-    int mod = SYNC(&mp, returnMod, 0);
     int msg_id = msg.msgId;
-    if (mod == CONDUCTOER) {
-        SCI_WRITE(&sci0, "Can msg received: ");
-        SCI_WRITE(&sci0, msg.buff);
-        sprintf(tempBuffer, ": %d\n", (int)msg.msgId-9);
-        SCI_WRITE(&sci0, tempBuffer);
-    } else {
-
+    int bufferValue = atoi(msg.buff);
+    switch (msg_id) {
+        case 1: // change key
+            sprintf(tempBuffer, "Can received key value: %d\n", bufferValue);
+            SCI_WRITE(&sci0, tempBuffer);
+            if (self->mod == MUSICIAN) {
+                ASYNC(&mp, changeKey, bufferValue);
+            }
+            break;
+        case 2: // change tempo
+            sprintf(tempBuffer, "Can received tempo value: %d\n", bufferValue);
+            SCI_WRITE(&sci0, tempBuffer);
+            if (self->mod == MUSICIAN) {
+                ASYNC(&mp, changeTempo, bufferValue);
+            }
+            break;
+        case 3: // mute
+            SCI_WRITE(&sci0, "Can received mute/unmute signal.\n");
+            if (self->mod == MUSICIAN) {
+                if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
+                {
+                    ASYNC(&tg, lockRequest, (int)mute);
+                } else {
+                    ASYNC(&tg, mute, 0);  
+                }
+            }
+            break;
+        case 4: // increase volume
+            SCI_WRITE(&sci0, "Can received increase vol signal.\n");
+            if (self->mod == MUSICIAN) {
+                ASYNC(&tg, lockRequest, (int)upVolume);
+            }
+            break;
+        case 5: // decrease volume
+            SCI_WRITE(&sci0, "Can received decrease vol signal.\n");
+            if (self->mod == MUSICIAN) {
+               ASYNC(&tg, lockRequest, (int)downVolume);
+            }
+            
+            break;
+        case 6:
+            SCI_WRITE(&sci0, "Can received start/stop signal.\n");
+            if (self->mod == MUSICIAN) {
+               if(SYNC(&mp, checkStart, 0)) {
+                    ASYNC(&mp, stop, 0);
+                } else {
+                    ASYNC(&mp, start, 0);
+                }
+            }
+        default: 
+            break;
     }
 }
 
 void reader(App *self, int c) {
     int bufferValue;
     char tempBuffer[50];
+    CANMsg msg;
     SCI_WRITE(&sci0, "Rcv: \'");
     SCI_WRITECHAR(&sci0, c);
     SCI_WRITE(&sci0, "\'\n");
-    int mod = SYNC(&mp, returnMod, 0);
-    CANMsg msg;
-    if (mod == CONDUCTOER) {
-
-        switch (c)
+    msg.nodeId = 1;
+    switch (c)
     {
     case '0' ... '9':
     case '-':
@@ -136,7 +177,6 @@ void reader(App *self, int c) {
     case 'e':
         self->buffer[self->index] = '\0';
         msg.length = self->index;
-        msg.nodeId = 1;
         for (int i = 0; i < self->index; i++) {
             msg.buff[i] = self->buffer[i];
         }
@@ -151,10 +191,11 @@ void reader(App *self, int c) {
                 SCI_WRITE(&sci0, " -5<=key<=5, try again!\n");
                 break;
             }
-            ASYNC(&mp, changeKey, bufferValue);
+            if (self->mod == CONDUCTOER) {
+                ASYNC(&mp, changeKey, bufferValue);
+            }
+            keybool = false;
             msg.msgId = 1;
-            
-            break;
         }
         // change tempo
         if (tempobool) {
@@ -163,17 +204,29 @@ void reader(App *self, int c) {
                 SCI_WRITE(&sci0, " 60<=tempo<=240, try again!\n");
                 break;
             }
-            ASYNC(&mp, changeTempo, bufferValue);
+            if (self->mod == CONDUCTOER) {
+                ASYNC(&mp, changeTempo, bufferValue);
+            }
+            tempobool = false;
             msg.msgId = 2;
-            break;
         }
         CAN_SEND(&can0, &msg);
         break;
     case 30:   //up
-        ASYNC(&tg, lockRequest, (int)upVolume);
+        msg.length = 0;
+        msg.msgId = 4;
+        if (self->mod == CONDUCTOER) {
+            ASYNC(&tg, lockRequest, (int)upVolume);
+        }
+        CAN_SEND(&can0, &msg);
         break;
     case 31:  //down
-        ASYNC(&tg, lockRequest, (int)downVolume);
+        msg.length = 0;
+        msg.msgId = 5;
+        if (self->mod == CONDUCTOER) {
+            ASYNC(&tg, lockRequest, (int)downVolume);
+        }
+        CAN_SEND(&can0, &msg);
         break;
     case 'K':  // change key
         SCI_WRITE(&sci0, "Please input the key(-5~5) you want:\n");
@@ -184,31 +237,46 @@ void reader(App *self, int c) {
         tempobool = true;                       // next input interger is saved as the tempo
         break;
     case 'M': //  mute/unmute
-        if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
-        {
-            ASYNC(&tg, lockRequest, (int)mute);
-        } else {
-            ASYNC(&tg, mute, 0);  
+        msg.length = 0;
+        msg.msgId = 3;
+        if (self->mod == CONDUCTOER) {
+            if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
+            {
+                ASYNC(&tg, lockRequest, (int)mute);
+            } else {
+                ASYNC(&tg, mute, 0);  
+            }
         }
-         
+        CAN_SEND(&can0, &msg);
         break;
     case 'S':
-        if(SYNC(&mp, checkStart, 0)) {
-            ASYNC(&mp, stop, 0);
-        } else {
-            ASYNC(&mp, start, 0);
+        msg.length = 0;
+        msg.msgId = 6;
+        if (self->mod == CONDUCTOER) {
+            if(SYNC(&mp, checkStart, 0)) {
+                ASYNC(&mp, stop, 0);
+            } else {
+                ASYNC(&mp, start, 0);
+            }
         }
+        CAN_SEND(&can0, &msg);  
+        break;
+    case 'C':
+        if (self->mod == CONDUCTOER) {
+            self->mod = MUSICIAN;
+            SCI_WRITE(&sci0, "change to musician mod\n");
+        } else {
+            self->mod = CONDUCTOER;
+            SCI_WRITE(&sci0, "Change to conductoer mod\n");
+        }
+        break;
     default:
         break;
     }
-    } else {
-
-    }
-    
+   
 }
 
 void startApp(App *self, int arg) {
-    CANMsg msg;
     
     SCI_INIT(&sci0); 
     CAN_INIT(&can0); 
@@ -392,9 +460,6 @@ void stop(MusicPlayer* self, int c) {
     
 }
 
-int returnMod(MusicPlayer* self, int c) {
-    return self->mod;
-}
 ///////////////////////////////////////////////////////////
 int main() {
     INSTALL(&sci0, sci_interrupt, SCI_IRQ0);
