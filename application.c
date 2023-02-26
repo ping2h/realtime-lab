@@ -8,6 +8,8 @@
 #include "sioTinyTimber.h"
 #define TRUE 1
 #define FALSE 0
+#define HOLD 0
+#define MOMENTARY 1
 
 /* 
  * S: start/stop the playing of melody
@@ -55,7 +57,11 @@ typedef struct {
 
 typedef struct {
     Object super;
-
+    Timer timer;
+    Time last;
+    int count;
+    int mod;
+    Time smaples[3];
 } Button;
 ///////////////////////////////////////////////////////////
 int* dac = (int *)0x4000741C;
@@ -74,6 +80,8 @@ void reader(App*, int);
 void receiver(App*, int);
 
 void press(Button*, int);
+void check1Sec(Button*, int);
+int timeToBPM(Time);
 
 
 void tick(ToneGenerator*, int);
@@ -98,7 +106,7 @@ App app = { initObject(), 0 , {}};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver); 
-Button bt = {initObject()};
+Button bt = {initObject(), initTimer(), 0, 0, MOMENTARY, {}};
 SysIO button = initSysIO(SIO_PORT0, &bt, press);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false}; // 500 USEC 650USEC 931USEC
 MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
@@ -416,8 +424,86 @@ void stop(MusicPlayer* self, int c) {
 }
 ///////////////////////////////////////////////////////////
 void press(Button* self, int c) {
-    SCI_WRITE(&sci0, "button \n");
+    char tempBuffer[50];
+    
+    if (self->mod == MOMENTARY) {
+        SCI_WRITE(&sci0, "button pressed\n");
+        if(self->count == 0) {
+            T_RESET(&self->timer);
+            self->count += 1;
+            
+            return;
+        }
+        
+        Time now = T_SAMPLE(&self->timer);
+        Time sinceLast = now - self->last;
+        if (sinceLast < MSEC(100)) {
+            SCI_WRITE(&sci0, "Ignoring contact bounce\n");
+            return;
+        }
+        self->last = now;
+
+        sprintf(tempBuffer, "msec: %ld\n", sinceLast/100);
+        SCI_WRITE(&sci0, tempBuffer);
+
+        self->smaples[self->count - 1] = sinceLast/100;
+        self->count++;
+        if (self->count == 4) {
+            self->count = 0;
+            self->last = 0;
+            Time average = 0;
+            snprintf(tempBuffer, 100, " %ld. %ld.%ld. \n", self->smaples[0], self->smaples[1], self->smaples[2]);
+            SCI_WRITE(&sci0, tempBuffer);
+            if (self->smaples[1]-self->smaples[0] < 200 && self->smaples[2]-self->smaples[1] < 200) {
+                for (size_t i = 0; i < 3; i++)
+                {
+                    average += self->smaples[i];
+                }
+                average /= 3;
+                int bpm = timeToBPM(average);
+                if (bpm >= 30 && bpm <= 300) {
+                    snprintf(tempBuffer, 100, "Nice beat. Setting BPM to %d.\n", bpm);
+                    SYNC(&mp, changeTempo, bpm);
+                    SCI_WRITE(&sci0, tempBuffer);
+                } else {
+                    snprintf(tempBuffer, 100, "BPM: %d out of range [30..300]\n", bpm);
+                    SCI_WRITE(&sci0, tempBuffer);
+                }
+            } else {
+                SCI_WRITE(&sci0, "not comparable length \n");
+                return;
+            }
+
+        }
+        AFTER(SEC(1), &bt, check1Sec, self->count);
+    } else {
+        SCI_WRITE(&sci0, "button released\n");
+        self->count++;
+        Time now = T_SAMPLE(&self->timer);
+        Time sinceLast = now - self->last;
+        self->last = now;
+        sprintf(tempBuffer, "sec: %ld\n", sinceLast/100000);
+        SCI_WRITE(&sci0, tempBuffer);
+        SIO_TRIG(&button, 0);
+        self->mod = MOMENTARY;
+
+    }
+    
 }
+
+void check1Sec(Button* self, int c) {
+    if (c == self->count && SIO_READ(&button)==0) {
+        SCI_WRITE(&sci0, "holding more than 1 sec, switch to PRESS-AND-HOLD\n");
+        self->mod = HOLD;
+        SIO_TRIG(&button, 1);
+    }
+
+}
+
+int timeToBPM(Time time) {
+    return (60.0 / time) * 1000;
+}
+
 
 ///////////////////////////////////////////////////////////
 int main() {
