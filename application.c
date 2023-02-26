@@ -63,6 +63,8 @@ typedef struct {
     int mod;
     Time smaples[3];
 } Button;
+
+
 ///////////////////////////////////////////////////////////
 int* dac = (int *)0x4000741C;
 int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
@@ -273,7 +275,6 @@ void tick(ToneGenerator *self, int c) {
         *dac = 0;
         self->lh = true;
     }
-    
     SEND(USEC(self->period), self->deadline, self, tick, c);   
     
     
@@ -384,6 +385,8 @@ void play(MusicPlayer* self, int c) {
     self->frequency_index++;
     SYNC(&tg, changeTone, period);
     AFTER(MSEC(50), &tg, unMuteGap, 0);
+    SIO_TOGGLE(&button);
+    AFTER(MSEC((int)30000 / self->tempo * tempoFactor), &button, sio_toggle, 0);
     SEND(MSEC((int)60000 / self->tempo * tempoFactor), USEC(100), self, play, 0);
 }
 
