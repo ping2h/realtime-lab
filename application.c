@@ -53,6 +53,10 @@ typedef struct {
     
 } MusicPlayer;
 
+typedef struct {
+    Object super;
+
+} Button;
 ///////////////////////////////////////////////////////////
 int* dac = (int *)0x4000741C;
 int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
@@ -68,7 +72,8 @@ bool tempobool = false;
 ///////////////////////////////////////////////////////////
 void reader(App*, int);
 void receiver(App*, int);
-void buttonF(App*, int);
+
+void press(Button*, int);
 
 
 void tick(ToneGenerator*, int);
@@ -93,7 +98,8 @@ App app = { initObject(), 0 , {}};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver); 
-SysIO button = initSysIO(SIO_PORT0, &app, buttonF);
+Button bt = {initObject()};
+SysIO button = initSysIO(SIO_PORT0, &bt, press);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false}; // 500 USEC 650USEC 931USEC
 MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
 
@@ -246,9 +252,7 @@ void startApp(App *self, int arg) {
 
 }
 
-void buttonF(App* self, int c) {
-    SCI_WRITE(&sci0, "button \n");
-}
+
 ///////////////////////////////////////////////////////////
 // tone generator
 void tick(ToneGenerator *self, int c) {
@@ -409,6 +413,10 @@ void stop(MusicPlayer* self, int c) {
             ASYNC(&tg, mute, 0);  
         }
     
+}
+///////////////////////////////////////////////////////////
+void press(Button* self, int c) {
+    SCI_WRITE(&sci0, "button \n");
 }
 
 ///////////////////////////////////////////////////////////
