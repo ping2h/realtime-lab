@@ -478,12 +478,20 @@ void press(Button* self, int c) {
         AFTER(SEC(1), &bt, check1Sec, self->count);
     } else {
         SCI_WRITE(&sci0, "button released\n");
-        self->count++;
+        // self->count++;
         Time now = T_SAMPLE(&self->timer);
         Time sinceLast = now - self->last;
         self->last = now;
-        sprintf(tempBuffer, "sec: %ld\n", sinceLast/100000);
-        SCI_WRITE(&sci0, tempBuffer);
+        if (sinceLast/100000 < 2) {
+            sprintf(tempBuffer, "sec: %ld < 2, hold button 2 sec to reset\n", sinceLast/100000);
+            SCI_WRITE(&sci0, tempBuffer);
+        } else {
+            SCI_WRITE(&sci0, "reset tempo \n");
+            self->count = 0;
+            self->last = 0;
+            ASYNC(&mp, changeTempo, 120);
+        }
+        
         SIO_TRIG(&button, 0);
         self->mod = MOMENTARY;
 
