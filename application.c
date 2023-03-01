@@ -490,6 +490,8 @@ void press(Button* self, int c) {
             SCI_WRITE(&sci0, tempBuffer);
         } else {
             SCI_WRITE(&sci0, "reset tempo \n");
+            sprintf(tempBuffer, "sec: %ld\n", sinceLast/100000);
+            SCI_WRITE(&sci0, tempBuffer);
             self->count = 0;
             self->last = 0;
             ASYNC(&mp, changeTempo, 120);
