@@ -12,6 +12,8 @@
 #define MOMENTARY 1
 
 /* 
+ * User Button: Tap tempo
+ *
  * S: start/stop the playing of melody
  * 
  * K: change key
@@ -43,6 +45,7 @@ typedef struct {
     int mute;
     Time deadline;
     bool muted;
+    int start;
 } ToneGenerator;
 
 
@@ -65,6 +68,7 @@ typedef struct {
 } Button;
 
 
+
 ///////////////////////////////////////////////////////////
 int* dac = (int *)0x4000741C;
 int frequency_indices[32] = {0,2,4,0,0,2,4,0,4,5,7,4,5,7,7,9,7,5,4,0,7,9,7,5,4,0,0,-5,0,0,-5,0};
@@ -77,6 +81,7 @@ bool keybool = false;
 bool tempobool = false;
 
 
+
 ///////////////////////////////////////////////////////////
 void reader(App*, int);
 void receiver(App*, int);
@@ -84,6 +89,7 @@ void receiver(App*, int);
 void press(Button*, int);
 void check1Sec(Button*, int);
 int timeToBPM(Time);
+bool checkComparable(Time, Time, Time);
 
 
 void tick(ToneGenerator*, int);
@@ -95,6 +101,8 @@ int  checkMuted(ToneGenerator*, int);
 void muteGap(ToneGenerator*, int);
 void unMuteGap(ToneGenerator*, int);
 void changeTone(ToneGenerator*, int);
+void startTG(ToneGenerator*, int);
+void stopTG(ToneGenerator*, int);
 
 void play(MusicPlayer*, int);
 void changeKey(MusicPlayer*, int);
@@ -103,6 +111,8 @@ int checkStart(MusicPlayer*, int);
 void start(MusicPlayer*, int);
 void stop(MusicPlayer*, int);
 
+
+
 ///////////////////////////////////////////////////////////
 App app = { initObject(), 0 , {}};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
@@ -110,70 +120,16 @@ Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver); 
 Button bt = {initObject(), initTimer(), 0, 0, MOMENTARY, {}};
 SysIO button = initSysIO(SIO_PORT0, &bt, press);
-ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false}; // 500 USEC 650USEC 931USEC
+ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false,TRUE}; // 500 USEC 650USEC 931USEC
 MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
+
 
 
 
 ///////////////////////////////////////////////////////////
 // app
 void receiver(App *self, int unused) {
-    // CANMsg msg;
-    // CAN_RECEIVE(&can0, &msg);
-    // char tempBuffer[50];
-    // int msg_id = msg.msgId;
-    // int bufferValue = atoi(msg.buff);
-    // switch (msg_id) {
-    //     case 1: // change key
-    //         sprintf(tempBuffer, "Can received key value: %d\n", bufferValue);
-    //         SCI_WRITE(&sci0, tempBuffer);
-    //         if (self->mod == MUSICIAN) {
-    //             ASYNC(&mp, changeKey, bufferValue);
-    //         }
-    //         break;
-    //     case 2: // change tempo
-    //         sprintf(tempBuffer, "Can received tempo value: %d\n", bufferValue);
-    //         SCI_WRITE(&sci0, tempBuffer);
-    //         if (self->mod == MUSICIAN) {
-    //             ASYNC(&mp, changeTempo, bufferValue);
-    //         }
-    //         break;
-    //     case 3: // mute
-    //         SCI_WRITE(&sci0, "Can received mute/unmute signal.\n");
-    //         if (self->mod == MUSICIAN) {
-    //             if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
-    //             {
-    //                 ASYNC(&tg, lockRequest, (int)mute);
-    //             } else {
-    //                 ASYNC(&tg, mute, 0);  
-    //             }
-    //         }
-    //         break;
-    //     case 4: // increase volume
-    //         SCI_WRITE(&sci0, "Can received increase vol signal.\n");
-    //         if (self->mod == MUSICIAN) {
-    //             ASYNC(&tg, lockRequest, (int)upVolume);
-    //         }
-    //         break;
-    //     case 5: // decrease volume
-    //         SCI_WRITE(&sci0, "Can received decrease vol signal.\n");
-    //         if (self->mod == MUSICIAN) {
-    //            ASYNC(&tg, lockRequest, (int)downVolume);
-    //         }
-            
-    //         break;
-    //     case 6:
-    //         SCI_WRITE(&sci0, "Can received start/stop signal.\n");
-    //         if (self->mod == MUSICIAN) {
-    //            if(SYNC(&mp, checkStart, 0)) {
-    //                 ASYNC(&mp, stop, 0);
-    //             } else {
-    //                 ASYNC(&mp, start, 0);
-    //             }
-    //         }
-    //     default: 
-    //         break;
-    // }
+   
 }
 
 void reader(App *self, int c) {
@@ -263,10 +219,14 @@ void startApp(App *self, int arg) {
 }
 
 
+
+
 ///////////////////////////////////////////////////////////
 // tone generator
 void tick(ToneGenerator *self, int c) {
-    
+    if (!self->start) {
+        return;
+    }
     if (self->lh)   
     {
         *dac = self->volume;
@@ -361,6 +321,18 @@ void changeTone(ToneGenerator* self, int c) {
     self->period = c;
 }
 
+void startTG(ToneGenerator* self, int c) {
+    self->start = TRUE;
+
+}
+
+void stopTG(ToneGenerator* self, int c) {
+    self->start = FALSE;
+
+}
+
+
+
 
 ///////////////////////////////////////////////////////////
 // music player
@@ -368,7 +340,9 @@ void play(MusicPlayer* self, int c) {
     int frequency_index;
     int period;
     double tempoFactor;
-    
+    if (!self->start) {
+        return;
+    }
     if (self->frequency_index==32){
         self->frequency_index = 0;
     }
@@ -406,25 +380,25 @@ int checkStart(MusicPlayer* self, int c) {
 
 void start(MusicPlayer* self, int c) {
     self->start = TRUE;
-    self->frequency_index = 0;
-    if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
-        {
-            ASYNC(&tg, lockRequest, (int)mute);
-        } else {
-            ASYNC(&tg, mute, 0);  
-        }
+    ASYNC(&tg, startTG, 0);
+    ASYNC(&tg, tick, 0);                
+    ASYNC(&mp, play, 0); 
+    SCI_WRITE(&sci0, "startMp\n");
+  
 }
 
 void stop(MusicPlayer* self, int c) {
+    self->frequency_index = 0;
     self->start = FALSE;
-    if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
-        {
-            ASYNC(&tg, lockRequest, (int)mute);
-        } else {
-            ASYNC(&tg, mute, 0);  
-        }
-    
+    ASYNC(&tg, stopTG, 0);
+    SCI_WRITE(&sci0, "stopMp\n");
+
 }
+
+
+
+
+// Button
 ///////////////////////////////////////////////////////////
 void press(Button* self, int c) {
     char tempBuffer[50];
@@ -434,7 +408,7 @@ void press(Button* self, int c) {
         if(self->count == 0) {
             T_RESET(&self->timer);
             self->count += 1;
-            
+            AFTER(SEC(1), &bt, check1Sec, self->count);
             return;
         }
         
@@ -457,7 +431,7 @@ void press(Button* self, int c) {
             Time average = 0;
             snprintf(tempBuffer, 100, " %ld. %ld.%ld. \n", self->smaples[0], self->smaples[1], self->smaples[2]);
             SCI_WRITE(&sci0, tempBuffer);
-            if (self->smaples[1]-self->smaples[0] < 200 && self->smaples[2]-self->smaples[1] < 200) {
+            if (checkComparable(self->smaples[0], self->smaples[1], self->smaples[2])) {
                 for (size_t i = 0; i < 3; i++)
                 {
                     average += self->smaples[i];
@@ -516,6 +490,18 @@ void check1Sec(Button* self, int c) {
 int timeToBPM(Time time) {
     return (60.0 / time) * 1000;
 }
+
+bool checkComparable(Time a, Time b, Time c) {
+    int sum = abs(a-b) + abs(a-c) + abs(b-c);
+    if (sum<300)
+    {
+        return true;
+    } else {
+        return false;
+    }
+    
+}
+
 
 
 ///////////////////////////////////////////////////////////
