@@ -43,6 +43,7 @@ typedef struct {
     int mute;
     Time deadline;
     bool muted;
+    int start;
 } ToneGenerator;
 
 
@@ -81,6 +82,8 @@ int  checkMuted(ToneGenerator*, int);
 void muteGap(ToneGenerator*, int);
 void unMuteGap(ToneGenerator*, int);
 void changeTone(ToneGenerator*, int);
+void startTG(ToneGenerator*, int);
+void stopTG(ToneGenerator*, int);
 
 void play(MusicPlayer*, int);
 void changeKey(MusicPlayer*, int);
@@ -94,7 +97,7 @@ App app = { initObject(), 0 , {}, CONDUCTOER};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, receiver);
-ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false}; // 500 USEC 650USEC 931USEC
+ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false, TRUE}; // 500 USEC 650USEC 931USEC
 MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
 
 
@@ -281,17 +284,6 @@ void startApp(App *self, int arg) {
     SCI_INIT(&sci0); 
     CAN_INIT(&can0); 
     SCI_WRITE(&sci0, "Hello, hello...\n");
-
-    // msg.msgId = 1;
-    // msg.nodeId = 1;
-    // msg.length = 6;
-    // msg.buff[0] = 'H';
-    // msg.buff[1] = 'e';
-    // msg.buff[2] = 'l';
-    // msg.buff[3] = 'l';
-    // msg.buff[4] = 'o';
-    // msg.buff[5] = 0;
-    // CAN_SEND(&can0, &msg);
     ASYNC(&tg, tick, 0);                   
     ASYNC(&mp, play, 0); 
     ASYNC(&mp, stop, 0);
@@ -302,6 +294,10 @@ void startApp(App *self, int arg) {
 // tone generator
 void tick(ToneGenerator *self, int c) {
     
+    if (!self->start) {
+        return;
+    }
+
     if (self->lh)   
     {
         *dac = self->volume;
@@ -397,6 +393,15 @@ void changeTone(ToneGenerator* self, int c) {
     self->period = c;
 }
 
+void startTG(ToneGenerator* self, int c) {
+    self->start = TRUE;
+
+}
+
+void stopTG(ToneGenerator* self, int c) {
+    self->start = FALSE;
+
+}
 
 ///////////////////////////////////////////////////////////
 // music player
@@ -404,7 +409,9 @@ void play(MusicPlayer* self, int c) {
     int frequency_index;
     int period;
     double tempoFactor;
-    
+    if (!self->start) {
+        return;
+    }
     if (self->frequency_index==32){
         self->frequency_index = 0;
     }
@@ -440,24 +447,19 @@ int checkStart(MusicPlayer* self, int c) {
 
 void start(MusicPlayer* self, int c) {
     self->start = TRUE;
-    self->frequency_index = 0;
-    if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
-        {
-            ASYNC(&tg, lockRequest, (int)mute);
-        } else {
-            ASYNC(&tg, mute, 0);  
-        }
+    ASYNC(&tg, startTG, 0);
+    ASYNC(&tg, tick, 0);                
+    ASYNC(&mp, play, 0); 
+    SCI_WRITE(&sci0, "startMp\n");
+  
 }
 
 void stop(MusicPlayer* self, int c) {
+    self->frequency_index = 0;
     self->start = FALSE;
-    if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
-        {
-            ASYNC(&tg, lockRequest, (int)mute);
-        } else {
-            ASYNC(&tg, mute, 0);  
-        }
-    
+    ASYNC(&tg, stopTG, 0);
+    SCI_WRITE(&sci0, "stopMp\n");
+
 }
 
 ///////////////////////////////////////////////////////////
