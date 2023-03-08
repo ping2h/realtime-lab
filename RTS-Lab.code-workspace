@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"makefile.launchConfigurations": [
+			{
+				"cwd": "c:\\Users\\DELL\\Desktop\\RTS-Lab\\Debug",
+				"binaryPath": "c:\\Users\\DELL\\Desktop\\RTS-Lab\\Debug\\RTS-Lab.elf",
+				"binaryArgs": []
+			}
+		]
+	}
+}
