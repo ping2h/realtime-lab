@@ -11,10 +11,12 @@
 #define HOLD 0
 #define MOMENTARY 1
 
+
+
 /* 
  * User Button: Tap tempo
  *
- * S: start/stop the playing of melody
+ * S: start/stop the playing of melody  
  * 
  * K: change key
  *
@@ -67,6 +69,14 @@ typedef struct {
     Time smaples[3];
 } Button;
 
+typedef struct 
+{   
+    Object super;
+    int tempo;
+    int start;
+} LED;
+
+
 
 
 ///////////////////////////////////////////////////////////
@@ -88,7 +98,7 @@ void receiver(App*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
-int timeToBPM(Time);
+int  timeToBPM(Time);
 bool checkComparable(Time, Time, Time);
 
 
@@ -107,9 +117,14 @@ void stopTG(ToneGenerator*, int);
 void play(MusicPlayer*, int);
 void changeKey(MusicPlayer*, int);
 void changeTempo(MusicPlayer*, int);
-int checkStart(MusicPlayer*, int);
+int  checkStart(MusicPlayer*, int);
 void start(MusicPlayer*, int);
 void stop(MusicPlayer*, int);
+
+void blink(LED*, int);
+void changeLed(LED*, int);
+void startled(LED*, int);
+void stopled(LED*, int);
 
 
 
@@ -122,6 +137,7 @@ Button bt = {initObject(), initTimer(), 0, 0, MOMENTARY, {}};
 SysIO button = initSysIO(SIO_PORT0, &bt, press);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false,TRUE}; // 500 USEC 650USEC 931USEC
 MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
+LED led = {initObject(), 120, TRUE};
 
 
 
@@ -215,6 +231,10 @@ void startApp(App *self, int arg) {
     ASYNC(&tg, tick, 0);                   
     ASYNC(&mp, play, 0); 
     ASYNC(&mp, stop, 0);
+    SIO_TOGGLE(&button);
+    
+    
+    
 
 }
 
@@ -359,8 +379,8 @@ void play(MusicPlayer* self, int c) {
     self->frequency_index++;
     SYNC(&tg, changeTone, period);
     AFTER(MSEC(50), &tg, unMuteGap, 0);
-    SIO_TOGGLE(&button);
-    AFTER(MSEC((int)30000 / self->tempo * tempoFactor), &button, sio_toggle, 0);
+    // SIO_TOGGLE(&button);
+    // AFTER(MSEC((int)30000 / self->tempo ), &button, sio_toggle, 0);
     SEND(MSEC((int)60000 / self->tempo * tempoFactor), USEC(100), self, play, 0);
 }
 
@@ -372,6 +392,7 @@ void changeKey(MusicPlayer* self, int c) {
 void changeTempo(MusicPlayer* self, int c) {
     tempobool = false;
     self->tempo = c;
+    ASYNC(&led, changeLed, c);
 }
 
 int checkStart(MusicPlayer* self, int c) {
@@ -380,9 +401,11 @@ int checkStart(MusicPlayer* self, int c) {
 
 void start(MusicPlayer* self, int c) {
     self->start = TRUE;
+    ASYNC(&led, startled, 0);
     ASYNC(&tg, startTG, 0);
     ASYNC(&tg, tick, 0);                
-    ASYNC(&mp, play, 0); 
+    ASYNC(&mp, play, 0);
+    ASYNC(&led, blink, 0); 
     SCI_WRITE(&sci0, "startMp\n");
   
 }
@@ -391,7 +414,9 @@ void stop(MusicPlayer* self, int c) {
     self->frequency_index = 0;
     self->start = FALSE;
     ASYNC(&tg, stopTG, 0);
+    ASYNC(&led, stopled, 0);
     SCI_WRITE(&sci0, "stopMp\n");
+    
 
 }
 
@@ -455,7 +480,7 @@ void press(Button* self, int c) {
         AFTER(SEC(1), &bt, check1Sec, self->count);
     } else {
         SCI_WRITE(&sci0, "button released\n");
-        // self->count++;
+
         Time now = T_SAMPLE(&self->timer);
         Time sinceLast = now - self->last;
         self->last = now;
@@ -502,7 +527,32 @@ bool checkComparable(Time a, Time b, Time c) {
     
 }
 
+///////////////////////////////////////////////////////////
 
+void blink(LED* self, int c) {
+    if (!self->start) {
+        SIO_WRITE(&button, 1);
+        return;
+    }
+    SIO_TOGGLE(&button);
+    AFTER(MSEC((int)30000 / self->tempo ), &button, sio_toggle, 0);
+    SEND(MSEC((int)60000 / self->tempo ), USEC(100), self, blink, 0);
+}
+
+void changeLed(LED* self, int c) {
+    self->tempo = c;
+}
+
+void startled(LED* self, int c) {
+    self->start = TRUE;
+
+
+}
+
+void stopled(LED* self, int c) {
+    self->start = FALSE;
+    
+}
 
 ///////////////////////////////////////////////////////////
 int main() {
