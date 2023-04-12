@@ -147,7 +147,7 @@ void stopled(LED*, int);
 
 
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0 , {}, CONDUCTOER, 1, 0}; // id 0, H priority
+App app = { initObject(), 0 , {}, CONDUCTOER, 1, 2}; // id 0, H priority
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, newrec); 
@@ -167,9 +167,13 @@ void newrec(App *self, int unused) {
     CAN_RECEIVE(&can0, &msg);
     char tempBuffer[50];
 
-    sprintf(tempBuffer, "receive a message from node: %d\n", msg.nodeId);
+    sprintf(tempBuffer, "receive a message from 111111node: %d\n", msg.nodeId);
     SCI_WRITE(&sci0, tempBuffer);
-    if (msg.buff[RECEIVER] != 255 && msg.buff[RECEIVER] != self->Id) {
+    sprintf(tempBuffer, "receiver : %d\n", msg.buff[RECEIVER]);
+    SCI_WRITE(&sci0, tempBuffer);
+    sprintf(tempBuffer, "op code: %d\n", msg.buff[OPCODE]);
+    SCI_WRITE(&sci0, tempBuffer);
+    if (msg.buff[RECEIVER] != 0 && msg.buff[RECEIVER] != self->Id) {
         return;
     }
     
@@ -185,8 +189,8 @@ void newrec(App *self, int unused) {
         SCI_WRITE(&sci0, "ready to start \n");
         break;
     case 4:
-        ASYNC(&mp, play1Note, msg.buff[2]);
-        sprintf(tempBuffer, "play1note index:%d\n", msg.buff[2]);
+        ASYNC(&mp, play1Note, msg.buff[5]);
+        sprintf(tempBuffer, "play1note index:%d\n", msg.buff[5]);
         SCI_WRITE(&sci0, tempBuffer);
         break;
     default:
@@ -379,7 +383,7 @@ void startRPC(int nodeId) {
     msg.nodeId = nodeId;
     msg.length = 7;
     msg.buff[OPCODE] = 1; 
-    msg.buff[RECEIVER] = 255; // broadcast
+    msg.buff[RECEIVER] = 0; // broadcast
 
     CAN_SEND(&can0, &msg);
     return;
@@ -388,8 +392,9 @@ void pitchSelfRPC(int nodeId) {
     CANMsg msg;
     msg.nodeId = nodeId;
     msg.length = 7;
-    msg.buff[OPCODE] = 0; // claim myself
-    msg.buff[RECEIVER] = 255;
+    msg.buff[OPCODE] = 0x00; // claim myself
+    msg.buff[RECEIVER] = 0x00;  /////
+    msg.buff[2] = 0; ///
     CAN_SEND(&can0, &msg);
     return;
 
@@ -634,7 +639,7 @@ void startDS(MusicPlayer* self, int c) {
 void stopAndSend(MusicPlayer* self, int noteIndex) {
     int receiverID;
     ASYNC(&tg, stopTG, 0);
-    receiverID = (SYNC(&app, getId, 0) + 1) % 2;   // test 2  /// 3
+    receiverID = (SYNC(&app, getId, 0) + 1) % 2 + 1;   // test 2  /// 3
     play1NoteRPC(noteIndex+1, receiverID);
     SCI_WRITE(&sci0, "stopMp and sent instruction to next processor \n");
 
@@ -648,9 +653,12 @@ void play1NoteRPC(int noteIndex, int receiverID) {
     
     msg.nodeId = SYNC(&app, getId, 0);
     msg.length = 7;
-    msg.buff[OPCODE] = 4; // claim myself
+    msg.buff[OPCODE] = 0x04; // claim myself///
     msg.buff[RECEIVER] = receiverID;
-    msg.buff[2] = noteIndex;
+    msg.buff[2] = 0;
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = noteIndex;
     CAN_SEND(&can0, &msg);
     SCI_WRITE(&sci0, "rpc\n");
     return;
