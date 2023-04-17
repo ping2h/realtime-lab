@@ -3,6 +3,7 @@
 #include "canTinyTimber.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdbool.h>
 #include "semaphore.h"  
 #include "sioTinyTimber.h"
@@ -14,8 +15,15 @@
 #define MUSICIAN 2
 #define OPCODE 0
 #define RECEIVER 1
-
-
+#define BROADCAST 0x00
+#define MUSIC_PLAY_NOTE_IDX 7
+#define MUSIC_START_ALL 5
+#define SEARCH_NETWORK 0
+#define CLAIM_EXISTENCE 1
+#define ALIVE 1
+#define SILENT 0
+#define MUSIC_SET_KEY 9
+#define MUSIC_SET_TEMPO 10
 
 
 /* 
@@ -36,6 +44,13 @@
  * Integer: end with 'e'
  */
 
+// each node stores the membership other nodes
+typedef struct {
+    int id;
+    uchar mod;    // Musician or conductor
+    uchar state;    // alive or slient
+} Node;
+
 
 typedef struct {
     Object super;
@@ -43,8 +58,10 @@ typedef struct {
     char buffer[50];
     int mod;
     int numOfNodes;   // 
-    int Id;
+    Node  nodes[3];   //
+    int Id; // its own Id 1,2,3
 } App;
+
 
 typedef struct {
     Object super;
@@ -108,6 +125,12 @@ void newrec(App*, int);
 // initally broadcast
 void pitchSelfRPC(int);
 int getId(App*, int);  //get the ID of the node
+void searchNetwork(App*, int);
+void searchNetworkRPC(App*, int);
+void claimExistence(App*, int);
+void claimExistenceRPC(App*, int);
+void printView(App*, int);
+
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -138,6 +161,8 @@ void stopAndSend(MusicPlayer*, int);
 void play1NoteRPC(int, int);
 void startDS(MusicPlayer*, int);
 void startRPC(int);
+void changeKeyRPC(MusicPlayer*, int);
+void changeTempoRPC(MusicPlayer*, int);
 
 void blink(LED*, int);
 void changeLed(LED*, int);
@@ -146,8 +171,10 @@ void stopled(LED*, int);
 
 
 
+
+
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0 , {}, CONDUCTOER, 1, 2}; // id 0, H priority
+App app = { initObject(), 0 , {}, CONDUCTOER, 1, {}, 2}; // 
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, newrec); 
@@ -166,32 +193,54 @@ void newrec(App *self, int unused) {
     CANMsg msg;
     CAN_RECEIVE(&can0, &msg);
     char tempBuffer[50];
-
-    sprintf(tempBuffer, "receive a message from 111111node: %d\n", msg.nodeId);
+    SCI_WRITE(&sci0, "---------------------------------------------------\n");
+    sprintf(tempBuffer, "Msg from: %d | Opcode: %d | Receiver: %d \n", msg.nodeId, msg.buff[OPCODE], msg.buff[RECEIVER]);
     SCI_WRITE(&sci0, tempBuffer);
-    sprintf(tempBuffer, "receiver : %d\n", msg.buff[RECEIVER]);
-    SCI_WRITE(&sci0, tempBuffer);
-    sprintf(tempBuffer, "op code: %d\n", msg.buff[OPCODE]);
-    SCI_WRITE(&sci0, tempBuffer);
-    if (msg.buff[RECEIVER] != 0 && msg.buff[RECEIVER] != self->Id) {
+    if (msg.buff[RECEIVER] != BROADCAST && msg.buff[RECEIVER] != self->Id) {
         return;
     }
-    
+    int a;
     int op = msg.buff[OPCODE];
     switch (op)
     {
-    case 0:
-        self->numOfNodes++;
-        SCI_WRITE(&sci0, "nodes: 2\n");
+    case SEARCH_NETWORK:
+        ASYNC(&app, searchNetwork, msg.nodeId);
+        SCI_WRITE(&sci0, "SEARCH_NETWORK\n");
+        ASYNC(&app, printView, 0);
         break;
-    case 1:
+    case MUSIC_START_ALL:
         ASYNC(&mp, startDS, 0);
-        SCI_WRITE(&sci0, "ready to start \n");
+        SCI_WRITE(&sci0, "Ready to start \n");
         break;
-    case 4:
+    case MUSIC_PLAY_NOTE_IDX:
         ASYNC(&mp, play1Note, msg.buff[5]);
-        sprintf(tempBuffer, "play1note index:%d\n", msg.buff[5]);
+        sprintf(tempBuffer, "Play1note index: %d\n", msg.buff[5]);
         SCI_WRITE(&sci0, tempBuffer);
+        break;
+    case CLAIM_EXISTENCE:
+        ASYNC(&app, claimExistence, msg.nodeId);
+        SCI_WRITE(&sci0, "CLAIM_EXISTENCE\n");
+        ASYNC(&app, printView, 0);
+        break;
+    case MUSIC_SET_KEY:
+        if (msg.buff[2] == 0) {
+            a = msg.buff[5];
+        } else {
+            a = 0 - msg.buff[5];
+        }
+        sprintf(tempBuffer, "Change key to: %d", a);
+        SCI_WRITE(&sci0, tempBuffer);
+        ASYNC(&mp, changeKey, a);
+        break;
+    case MUSIC_SET_TEMPO:
+        if (msg.buff[2] == 0) {
+            a = msg.buff[5];
+        } else {
+            a = 0 - msg.buff[5];
+        }
+        sprintf(tempBuffer, "Change tempo to: %d",  a);
+        SCI_WRITE(&sci0, tempBuffer);
+        ASYNC(&mp, changeTempo, a);
         break;
     default:
         break;
@@ -278,31 +327,51 @@ void reader(App *self, int c) {
         SCI_WRITE(&sci0, tempBuffer);
         // change key 
         if (keybool) {
+            // if (bufferValue<-5 || bufferValue > 5)
+            // {
+            //     SCI_WRITE(&sci0, " -5<=key<=5, try again!\n");
+            //     break;
+            // }
+            // if (self->mod == CONDUCTOER) {
+            //     ASYNC(&mp, changeKey, bufferValue);
+            // }
+            // keybool = false;
+            // msg.msgId = 1;
             if (bufferValue<-5 || bufferValue > 5)
             {
                 SCI_WRITE(&sci0, " -5<=key<=5, try again!\n");
                 break;
             }
             if (self->mod == CONDUCTOER) {
-                ASYNC(&mp, changeKey, bufferValue);
+                ASYNC(&mp, changeKeyRPC, bufferValue);
+                ASYNC(&mp, changeKey, bufferValue); // local
             }
             keybool = false;
-            msg.msgId = 1;
         }
         // change tempo
         if (tempobool) {
+            // if (bufferValue< 60 || bufferValue > 240)
+            // {
+            //     SCI_WRITE(&sci0, " 60<=tempo<=240, try again!\n");
+            //     break;
+            // }
+            // if (self->mod == CONDUCTOER) {
+            //     ASYNC(&mp, changeTempo, bufferValue);
+            // }
+            // tempobool = false;
+            // msg.msgId = 2;
             if (bufferValue< 60 || bufferValue > 240)
             {
                 SCI_WRITE(&sci0, " 60<=tempo<=240, try again!\n");
                 break;
             }
             if (self->mod == CONDUCTOER) {
-                ASYNC(&mp, changeTempo, bufferValue);
+                ASYNC(&mp, changeTempoRPC, bufferValue);
+                ASYNC(&mp, changeTempo, bufferValue);  // local
             }
             tempobool = false;
-            msg.msgId = 2;
         }
-        CAN_SEND(&can0, &msg);
+        // CAN_SEND(&can0, &msg);
         break;
     case 30:   //up
         msg.length = 0;
@@ -363,10 +432,10 @@ void reader(App *self, int c) {
             SCI_WRITE(&sci0, "Change to conductoer mod\n");
         }
         break;
-    case 'B':   
-        pitchSelfRPC(self->Id);
-        SCI_WRITE(&sci0, "pitch myself\n");
-        break;
+    // case 'B':   
+    //     pitchSelfRPC(self->Id);
+    //     SCI_WRITE(&sci0, "pitch myself\n");
+    //     break;
     case 'P': // conductor plays the first note and send message to other nodes.
         SYNC(&mp, startDS, 0);
         startRPC(self->Id);
@@ -382,8 +451,8 @@ void startRPC(int nodeId) {
     CANMsg msg;
     msg.nodeId = nodeId;
     msg.length = 7;
-    msg.buff[OPCODE] = 1; 
-    msg.buff[RECEIVER] = 0; // broadcast
+    msg.buff[OPCODE] = MUSIC_START_ALL; 
+    msg.buff[RECEIVER] = BROADCAST; // broadcast
 
     CAN_SEND(&can0, &msg);
     return;
@@ -403,11 +472,16 @@ int getId(App* self, int c) {
     return self->Id;
 }
 void startApp(App *self, int arg) {
-    
+    char tempBuffer[50];
     SCI_INIT(&sci0); 
     CAN_INIT(&can0);
     SIO_INIT(&button); 
-    SCI_WRITE(&sci0, "Hello, hello...\n");
+    self->nodes[0] = (Node) {self->Id, self->mod, ALIVE};
+    ASYNC(&app, searchNetworkRPC, self->Id);
+    sprintf(tempBuffer, "Node %d joined the system", self->Id);
+    
+    SCI_WRITE(&sci0, tempBuffer);
+    ASYNC(&app, printView, 0);
     ASYNC(&tg, tick, 0);                   
     ASYNC(&mp, play, 0); 
     ASYNC(&mp, stop, 0);
@@ -418,9 +492,88 @@ void startApp(App *self, int arg) {
 
 }
 
+void searchNetwork(App *self, int nodeID) {
+    ASYNC(&app, claimExistenceRPC, nodeID);    // show my existence to that newly joined node
+    for (size_t i = 0; i < 2; i++)             // change my system view
+    {
+        if (self->nodes[i].id == 0) {
+            if (nodeID == 1) {
+                self->nodes[i] = (Node) {nodeID, CONDUCTOER, ALIVE};
+            } else {
+                self->nodes[i] = (Node) {nodeID, MUSICIAN, ALIVE};
+            }
+            break;
+        }
+    }
+    
+}
 
+void searchNetworkRPC(App *self, int c) {
+    CANMsg msg;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = SEARCH_NETWORK; 
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0;
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    CAN_SEND(&can0, &msg);
+    SCI_WRITE(&sci0, "searchNetworkRPC sent.\n");
+    return;
+}
 
+void claimExistence(App* self, int nodeID) {
+    for (size_t i = 0; i < 3; i++)             // change my system view
+    {
+        if (self->nodes[i].id == 0) {
+            if (nodeID == 1) {
+                self->nodes[i] = (Node) {nodeID, CONDUCTOER, ALIVE};
+            } else {
+                self->nodes[i] = (Node) {nodeID, MUSICIAN, ALIVE};
+            }
+            break;
+        }
+    }
+}
+void claimExistenceRPC(App* self, int nodeID) {
+    CANMsg msg;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = CLAIM_EXISTENCE; 
+    msg.buff[RECEIVER] = nodeID;
+    msg.buff[2] = 0;
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    CAN_SEND(&can0, &msg);
+    SCI_WRITE(&sci0, "claimExistenceRPC sent.\n");
+    return;
+}
 
+void printView(App *self, int c) {
+    char tempBuffer[50];
+    SCI_WRITE(&sci0, "---------------------------------------------------\n");
+    SCI_WRITE(&sci0, "System view: ");
+    for (size_t i = 0; i < 3; i++)
+    {   
+        if (self->nodes[i].id == 0) {
+            continue;
+        } else {
+            if (self->nodes[i].id == self->Id) {
+                sprintf(tempBuffer, "(Myself)ID: %d, Mode: %d, State: %d | ", self->nodes[i].id, self->nodes[i].mod, self->nodes[i].state);
+                SCI_WRITE(&sci0, &tempBuffer);
+            } else {
+                sprintf(tempBuffer, "ID: %d, Mode: %d, State: %d | ", self->nodes[i].id, self->nodes[i].mod, self->nodes[i].state);
+                SCI_WRITE(&sci0, &tempBuffer);
+            }
+            
+        }
+        
+    }
+    SCI_WRITE(&sci0, "\n");
+    
+}
 ///////////////////////////////////////////////////////////
 // tone generator
 void tick(ToneGenerator *self, int c) {
@@ -569,11 +722,9 @@ void play1Note(MusicPlayer* self, int noteIndex){
     int frequency_index;
     int period;
     double tempoFactor;
-    SCI_WRITE(&sci0, "want to \n");
     if (!self->start) {
         return;
     }
-    SCI_WRITE(&sci0, "played");
     if (tempos[noteIndex] == 'b') {
         tempoFactor = 2.0;
     } else if (tempos[noteIndex] == 'c'){
@@ -591,6 +742,53 @@ void play1Note(MusicPlayer* self, int noteIndex){
     SEND(MSEC((int)60000 / self->tempo * tempoFactor), USEC(100), self, stopAndSend, noteIndex);
 
 }
+
+
+void changeKeyRPC(MusicPlayer* self, int c) {
+    CANMsg msg;
+    msg.nodeId = SYNC(&app, getId, 0);
+    msg.length = 7;
+    msg.buff[OPCODE] = MUSIC_SET_KEY; 
+    msg.buff[RECEIVER] = BROADCAST;
+    if (c > 0) {
+        msg.buff[2] = 0;
+        msg.buff[3] = 0;
+        msg.buff[4] = 0;
+        msg.buff[5] = c;
+    } else {
+        msg.buff[2] = 1;
+        msg.buff[3] = 0;
+        msg.buff[4] = 0;
+        msg.buff[5] = 0-c;
+    }
+    
+    CAN_SEND(&can0, &msg);
+    return;
+}
+
+void changeTempoRPC(MusicPlayer* self, int c) {
+    CANMsg msg;
+    msg.nodeId = SYNC(&app, getId, 0);
+    msg.length = 7;
+    msg.buff[OPCODE] = MUSIC_SET_TEMPO; 
+    msg.buff[RECEIVER] = BROADCAST;
+    if (c > 0) {
+        msg.buff[2] = 0;
+        msg.buff[3] = 0;
+        msg.buff[4] = 0;
+        msg.buff[5] = c;
+    } else {
+        msg.buff[2] = 1;
+        msg.buff[3] = 0;
+        msg.buff[4] = 0;
+        msg.buff[5] = 0-c;
+    }
+
+    CAN_SEND(&can0, &msg);
+    return;
+}
+
+
 void changeKey(MusicPlayer* self, int c) {
     keybool = false;
     self->key = c;
@@ -639,7 +837,7 @@ void startDS(MusicPlayer* self, int c) {
 void stopAndSend(MusicPlayer* self, int noteIndex) {
     int receiverID;
     ASYNC(&tg, stopTG, 0);
-    receiverID = (SYNC(&app, getId, 0) + 1) % 2 + 1;   // test 2  /// 3
+    receiverID = (SYNC(&app, getId, 0)) % 3 + 1;   // test 2  /// 3
     play1NoteRPC(noteIndex+1, receiverID);
     SCI_WRITE(&sci0, "stopMp and sent instruction to next processor \n");
 
@@ -653,14 +851,14 @@ void play1NoteRPC(int noteIndex, int receiverID) {
     
     msg.nodeId = SYNC(&app, getId, 0);
     msg.length = 7;
-    msg.buff[OPCODE] = 0x04; // claim myself///
+    msg.buff[OPCODE] = MUSIC_PLAY_NOTE_IDX; // claim myself///
     msg.buff[RECEIVER] = receiverID;
+    
     msg.buff[2] = 0;
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = noteIndex;
     CAN_SEND(&can0, &msg);
-    SCI_WRITE(&sci0, "rpc\n");
     return;
 }
 
