@@ -130,7 +130,7 @@ void searchNetworkRPC(App*, int);
 void claimExistence(App*, int);
 void claimExistenceRPC(App*, int);
 void printView(App*, int);
-
+int  getRole(App*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -223,21 +223,38 @@ void newrec(App *self, int unused) {
         ASYNC(&app, printView, 0);
         break;
     case MUSIC_SET_KEY:
-        if (msg.buff[2] == 0) {
-            a = msg.buff[5];
-        } else {
-            a = 0 - msg.buff[5];
-        }
+        // if (msg.buff[2] == 0) {
+        //     a = msg.buff[5];
+        // } else {
+        //     a = 0 - msg.buff[5];
+        // }
+        a = msg.buff[2] << 24 |\
+            msg.buff[3] << 16 |\
+            msg.buff[4] << 8 |\
+            msg.buff[5];
         sprintf(tempBuffer, "Change key to: %d", a);
         SCI_WRITE(&sci0, tempBuffer);
         ASYNC(&mp, changeKey, a);
         break;
     case MUSIC_SET_TEMPO:
-        if (msg.buff[2] == 0) {
-            a = msg.buff[5];
-        } else {
-            a = 0 - msg.buff[5];
-        }
+        // if (msg.buff[2] == 0) {
+        //     a = msg.buff[5];
+        // } else {
+        //     a = 0 - msg.buff[5];
+        // }
+        
+        // for (size_t i = 2; i <= 5; i++)
+        // {
+        //     a = msg.buff[i];
+        //     if(i == 5) {
+        //         continue;
+        //     }
+        //     a = a << 8;
+        // }
+        a = (msg.buff[2] & 0xFF) << 24 |\
+            (msg.buff[3] & 0xFF) << 16 |\
+            (msg.buff[4] & 0xFF) << 8 |\
+            msg.buff[5];
         sprintf(tempBuffer, "Change tempo to: %d",  a);
         SCI_WRITE(&sci0, tempBuffer);
         ASYNC(&mp, changeTempo, a);
@@ -374,20 +391,13 @@ void reader(App *self, int c) {
         // CAN_SEND(&can0, &msg);
         break;
     case 30:   //up
-        msg.length = 0;
-        msg.msgId = 4;
-        if (self->mod == CONDUCTOER) {
-            ASYNC(&tg, lockRequest, (int)upVolume);
-        }
-        CAN_SEND(&can0, &msg);
+        // msg.length = 0;
+        // msg.msgId = 4;
+        ASYNC(&tg, lockRequest, (int)upVolume);
+        // CAN_SEND(&can0, &msg);
         break;
     case 31:  //down
-        msg.length = 0;
-        msg.msgId = 5;
-        if (self->mod == CONDUCTOER) {
-            ASYNC(&tg, lockRequest, (int)downVolume);
-        }
-        CAN_SEND(&can0, &msg);
+        ASYNC(&tg, lockRequest, (int)downVolume);
         break;
     case 'K':  // change key
         SCI_WRITE(&sci0, "Please input the key(-5~5) you want:\n");
@@ -398,8 +408,6 @@ void reader(App *self, int c) {
         tempobool = true;                       // next input interger is saved as the tempo
         break;
     case 'M': //  mute/unmute
-        msg.length = 0;
-        msg.msgId = 3;
         if (self->mod == CONDUCTOER) {
             if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
             {
@@ -408,12 +416,8 @@ void reader(App *self, int c) {
                 ASYNC(&tg, mute, 0);  
             }
         }
-            
-        CAN_SEND(&can0, &msg);
         break;
     case 'S':
-        msg.length = 0;
-        msg.msgId = 6;
         if (self->mod == CONDUCTOER) {
             if(SYNC(&mp, checkStart, 0)) {
                 ASYNC(&mp, stop, 0);
@@ -421,7 +425,6 @@ void reader(App *self, int c) {
                 ASYNC(&mp, start, 0);
             }
         }
-        CAN_SEND(&can0, &msg);  
         break;
     case 'C':
         if (self->mod == CONDUCTOER) {
@@ -432,14 +435,16 @@ void reader(App *self, int c) {
             SCI_WRITE(&sci0, "Change to conductoer mod\n");
         }
         break;
-    // case 'B':   
-    //     pitchSelfRPC(self->Id);
-    //     SCI_WRITE(&sci0, "pitch myself\n");
-    //     break;
+    case 'B':   // search the network
+        ASYNC(&app, searchNetworkRPC, self->Id);
+        SCI_WRITE(&sci0, "get command:search the network\n");    
+        break;
     case 'P': // conductor plays the first note and send message to other nodes.
-        SYNC(&mp, startDS, 0);
-        startRPC(self->Id);
-        ASYNC(&mp, play1Note, 0);
+        if (self->mod == CONDUCTOER) {
+            SYNC(&mp, startDS, 0);
+            startRPC(self->Id);
+            ASYNC(&mp, play1Note, 0);
+        }
         break;
     default:
         break;
@@ -471,6 +476,10 @@ void pitchSelfRPC(int nodeId) {
 int getId(App* self, int c) {
     return self->Id;
 }
+
+int getRole(App *self, int c) {
+    return self->mod;
+}
 void startApp(App *self, int arg) {
     char tempBuffer[50];
     SCI_INIT(&sci0); 
@@ -496,6 +505,9 @@ void searchNetwork(App *self, int nodeID) {
     ASYNC(&app, claimExistenceRPC, nodeID);    // show my existence to that newly joined node
     for (size_t i = 0; i < 2; i++)             // change my system view
     {
+        if (self->nodes[i].id == nodeID) {
+            break;
+        }
         if (self->nodes[i].id == 0) {
             if (nodeID == 1) {
                 self->nodes[i] = (Node) {nodeID, CONDUCTOER, ALIVE};
@@ -514,7 +526,7 @@ void searchNetworkRPC(App *self, int c) {
     msg.length = 7;
     msg.buff[OPCODE] = SEARCH_NETWORK; 
     msg.buff[RECEIVER] = BROADCAST;
-    msg.buff[2] = 0;
+    msg.buff[2] = 0; 
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
@@ -526,6 +538,9 @@ void searchNetworkRPC(App *self, int c) {
 void claimExistence(App* self, int nodeID) {
     for (size_t i = 0; i < 3; i++)             // change my system view
     {
+        if (self->nodes[i].id == nodeID) {
+            break;
+        }
         if (self->nodes[i].id == 0) {
             if (nodeID == 1) {
                 self->nodes[i] = (Node) {nodeID, CONDUCTOER, ALIVE};
@@ -750,16 +765,20 @@ void changeKeyRPC(MusicPlayer* self, int c) {
     msg.length = 7;
     msg.buff[OPCODE] = MUSIC_SET_KEY; 
     msg.buff[RECEIVER] = BROADCAST;
-    if (c > 0) {
-        msg.buff[2] = 0;
-        msg.buff[3] = 0;
-        msg.buff[4] = 0;
-        msg.buff[5] = c;
-    } else {
-        msg.buff[2] = 1;
-        msg.buff[3] = 0;
-        msg.buff[4] = 0;
-        msg.buff[5] = 0-c;
+    // if (c > 0) {
+    //     msg.buff[2] = 0;
+    //     msg.buff[3] = 0;
+    //     msg.buff[4] = 0;
+    //     msg.buff[5] = c;
+    // } else {
+    //     msg.buff[2] = 1;
+    //     msg.buff[3] = 0;
+    //     msg.buff[4] = 0;
+    //     msg.buff[5] = 0-c;
+    // }
+    for (int i = 5; i >= 2; i--) {
+        msg.buff[i] = c;
+        c = c >> 8;
     }
     
     CAN_SEND(&can0, &msg);
@@ -772,16 +791,20 @@ void changeTempoRPC(MusicPlayer* self, int c) {
     msg.length = 7;
     msg.buff[OPCODE] = MUSIC_SET_TEMPO; 
     msg.buff[RECEIVER] = BROADCAST;
-    if (c > 0) {
-        msg.buff[2] = 0;
-        msg.buff[3] = 0;
-        msg.buff[4] = 0;
-        msg.buff[5] = c;
-    } else {
-        msg.buff[2] = 1;
-        msg.buff[3] = 0;
-        msg.buff[4] = 0;
-        msg.buff[5] = 0-c;
+    // if (c > 0) {
+    //     msg.buff[2] = 0;
+    //     msg.buff[3] = 0;
+    //     msg.buff[4] = 0;
+    //     msg.buff[5] = c;
+    // } else {
+    //     msg.buff[2] = 1;
+    //     msg.buff[3] = 0;
+    //     msg.buff[4] = 0;
+    //     msg.buff[5] = 0-c;
+    // }
+    for (int i = 5; i >= 2; i--) {
+        msg.buff[i] = c;
+        c = c >> 8;
     }
 
     CAN_SEND(&can0, &msg);
@@ -837,7 +860,7 @@ void startDS(MusicPlayer* self, int c) {
 void stopAndSend(MusicPlayer* self, int noteIndex) {
     int receiverID;
     ASYNC(&tg, stopTG, 0);
-    receiverID = (SYNC(&app, getId, 0)) % 3 + 1;   // test 2  /// 3
+    receiverID = (SYNC(&app, getId, 0)) % 2 + 1;   // test 2  /// 3
     play1NoteRPC(noteIndex+1, receiverID);
     SCI_WRITE(&sci0, "stopMp and sent instruction to next processor \n");
 
@@ -867,56 +890,22 @@ void play1NoteRPC(int noteIndex, int receiverID) {
 ///////////////////////////////////////////////////////////
 void press(Button* self, int c) {
     char tempBuffer[50];
-    
+    int role = SYNC(&app, getRole, 0);
     if (self->mod == MOMENTARY) {
-        SCI_WRITE(&sci0, "button pressed\n");
-        if(self->count == 0) {
-            T_RESET(&self->timer);
-            self->count += 1;
-            AFTER(SEC(1), &bt, check1Sec, self->count);
-            return;
+        if (role == MUSICIAN) {
+            if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
+            {
+                ASYNC(&tg, lockRequest, (int)mute);
+            } else {
+                ASYNC(&tg, mute, 0);  
+            }
+            
         }
-        
+        SCI_WRITE(&sci0, "button pressed\n");
         Time now = T_SAMPLE(&self->timer);
         Time sinceLast = now - self->last;
-        if (sinceLast < MSEC(100)) {
-            SCI_WRITE(&sci0, "Ignoring contact bounce\n");
-            return;
-        }
         self->last = now;
-
-        sprintf(tempBuffer, "msec: %ld\n", sinceLast/100);
-        SCI_WRITE(&sci0, tempBuffer);
-
-        self->smaples[self->count - 1] = sinceLast/100;
         self->count++;
-        if (self->count == 4) {
-            self->count = 0;
-            self->last = 0;
-            Time average = 0;
-            snprintf(tempBuffer, 100, " %ld. %ld.%ld. \n", self->smaples[0], self->smaples[1], self->smaples[2]);
-            SCI_WRITE(&sci0, tempBuffer);
-            if (checkComparable(self->smaples[0], self->smaples[1], self->smaples[2])) {
-                for (size_t i = 0; i < 3; i++)
-                {
-                    average += self->smaples[i];
-                }
-                average /= 3;
-                int bpm = timeToBPM(average);
-                if (bpm >= 30 && bpm <= 300) {
-                    snprintf(tempBuffer, 100, "Nice beat. Setting BPM to %d.\n", bpm);
-                    SYNC(&mp, changeTempo, bpm);
-                    SCI_WRITE(&sci0, tempBuffer);
-                } else {
-                    snprintf(tempBuffer, 100, "BPM: %d out of range [30..300]\n", bpm);
-                    SCI_WRITE(&sci0, tempBuffer);
-                }
-            } else {
-                SCI_WRITE(&sci0, "not comparable length \n");
-                return;
-            }
-
-        }
         AFTER(SEC(1), &bt, check1Sec, self->count);
     } else {
         SCI_WRITE(&sci0, "button released\n");
@@ -924,17 +913,23 @@ void press(Button* self, int c) {
         Time now = T_SAMPLE(&self->timer);
         Time sinceLast = now - self->last;
         self->last = now;
-        if (sinceLast/100000 < 2) {
+        if (role == CONDUCTOER) {
+            if (sinceLast/100000 < 2) {
             sprintf(tempBuffer, "sec: %ld < 2, hold button 2 sec to reset\n", sinceLast/100000);
             SCI_WRITE(&sci0, tempBuffer);
-        } else {
-            SCI_WRITE(&sci0, "reset tempo \n");
-            sprintf(tempBuffer, "sec: %ld\n", sinceLast/100000);
-            SCI_WRITE(&sci0, tempBuffer);
-            self->count = 0;
-            self->last = 0;
-            ASYNC(&mp, changeTempo, 120);
+            } else {
+                SCI_WRITE(&sci0, "reset tempo and key \n");
+            
+                SCI_WRITE(&sci0, tempBuffer);
+
+                self->last = 0;
+                ASYNC(&mp, changeTempo, 120);
+                ASYNC(&mp, changeTempoRPC, 120);
+                ASYNC(&mp, changeKeyRPC, 0);
+                ASYNC(&mp, changeKey, 0);
+            }
         }
+        
         
         SIO_TRIG(&button, 0);
         self->mod = MOMENTARY;
