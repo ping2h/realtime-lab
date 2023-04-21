@@ -20,10 +20,15 @@
 #define MUSIC_START_ALL 5
 #define SEARCH_NETWORK 0
 #define CLAIM_EXISTENCE 1
+#define CLAIM_CONDUCTORSHIP 2
+#define ANSWER_TO_CLAIM_CONDUCTORSHIP 3
+#define IAMLEADER 4
 #define ALIVE 1
 #define SILENT 0
 #define MUSIC_SET_KEY 9
 #define MUSIC_SET_TEMPO 10
+#define NODES 2
+#define ID 1
 
 
 /* 
@@ -60,6 +65,8 @@ typedef struct {
     int numOfNodes;   // 
     Node  nodes[3];   //
     int Id; // its own Id 1,2,3
+    int vote;   //p2, for leader election, -1 means the node has not voted. After voting, set it to candidate' id
+    int numofvots; // 0
 } App;
 
 
@@ -73,6 +80,7 @@ typedef struct {
     Time deadline;
     bool muted;
     int start;
+    bool enablePrint;
 } ToneGenerator;
 
 
@@ -102,7 +110,10 @@ typedef struct
     int start;
 } LED;
 
-
+typedef struct {
+    int nodeid;
+    int vote;
+} voteREplyMessge;
 
 
 ///////////////////////////////////////////////////////////
@@ -131,6 +142,14 @@ void claimExistence(App*, int);
 void claimExistenceRPC(App*, int);
 void printView(App*, int);
 int  getRole(App*, int);
+void leaderElection(App*, int);
+void leaderElectionRPC(App*, int);
+void imLeader(App*, int);
+void imLeaderRPC(App*, int);
+void voteReplyRPC(App*, int);
+void voteReply(App*, int);
+void changeSysView(App*, int);
+
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -149,6 +168,8 @@ void unMuteGap(ToneGenerator*, int);
 void changeTone(ToneGenerator*, int);
 void startTG(ToneGenerator*, int);
 void stopTG(ToneGenerator*, int);
+void printMute5s(ToneGenerator*, int);
+void enablePrint(ToneGenerator*, int);
 
 void play(MusicPlayer*, int);
 void changeKey(MusicPlayer*, int);
@@ -174,15 +195,16 @@ void stopled(LED*, int);
 
 
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0 , {}, CONDUCTOER, 1, {}, 2}; // 
+App app = { initObject(), 0 , {}, MUSICIAN, 1, {}, ID, -1, 0}; // 
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, newrec); 
 Button bt = {initObject(), initTimer(), 0, 0, MOMENTARY, {}};
 SysIO button = initSysIO(SIO_PORT0, &bt, press);
-ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false,TRUE}; // 500 USEC 650USEC 931USEC
+ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false,TRUE, true}; // 500 USEC 650USEC 931USEC
 MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
 LED led = {initObject(), 120, TRUE};
+voteREplyMessge vote = {};
 
 
 
@@ -223,11 +245,6 @@ void newrec(App *self, int unused) {
         ASYNC(&app, printView, 0);
         break;
     case MUSIC_SET_KEY:
-        // if (msg.buff[2] == 0) {
-        //     a = msg.buff[5];
-        // } else {
-        //     a = 0 - msg.buff[5];
-        // }
         a = msg.buff[2] << 24 |\
             msg.buff[3] << 16 |\
             msg.buff[4] << 8 |\
@@ -237,20 +254,6 @@ void newrec(App *self, int unused) {
         ASYNC(&mp, changeKey, a);
         break;
     case MUSIC_SET_TEMPO:
-        // if (msg.buff[2] == 0) {
-        //     a = msg.buff[5];
-        // } else {
-        //     a = 0 - msg.buff[5];
-        // }
-        
-        // for (size_t i = 2; i <= 5; i++)
-        // {
-        //     a = msg.buff[i];
-        //     if(i == 5) {
-        //         continue;
-        //     }
-        //     a = a << 8;
-        // }
         a = (msg.buff[2] & 0xFF) << 24 |\
             (msg.buff[3] & 0xFF) << 16 |\
             (msg.buff[4] & 0xFF) << 8 |\
@@ -259,9 +262,21 @@ void newrec(App *self, int unused) {
         SCI_WRITE(&sci0, tempBuffer);
         ASYNC(&mp, changeTempo, a);
         break;
+    case CLAIM_CONDUCTORSHIP:
+        ASYNC(&app, leaderElection, msg.nodeId);
+        SCI_WRITE(&sci0, "Receive a vote request.\n");
+        break;
+    case ANSWER_TO_CLAIM_CONDUCTORSHIP:
+        ASYNC(&app, voteReply, msg.buff[5]);
+        break;
+    case IAMLEADER:
+        ASYNC(&app, imLeader, msg.nodeId);
+        break;
     default:
         break;
     }
+    
+    
 }
 void receiver(App *self, int unused) {
     CANMsg msg;
@@ -325,11 +340,9 @@ void receiver(App *self, int unused) {
 void reader(App *self, int c) {
     int bufferValue;
     char tempBuffer[50];
-    CANMsg msg;
     SCI_WRITE(&sci0, "Rcv: \'");
     SCI_WRITECHAR(&sci0, c);
     SCI_WRITE(&sci0, "\'\n");
-    msg.nodeId = 1;
     switch (c)
     {
     case '0' ... '9':
@@ -446,6 +459,21 @@ void reader(App *self, int c) {
             ASYNC(&mp, play1Note, 0);
         }
         break;
+    case 'U':
+        ASYNC(&tg, enablePrint, 0);
+        SCI_WRITE(&sci0, "enable/disable print mute \n");   
+        break;
+    case 'E':
+        if (self->mod == CONDUCTOER) {
+            SCI_WRITE(&sci0, "leader election: you are conductor now!\n");
+        } else {
+            SCI_WRITE(&sci0, "leader election begins \n");
+            ASYNC(&app, leaderElectionRPC, 0);
+        }
+        break;
+    case 'V':
+        ASYNC(&app, printView, 0);
+        break;
     default:
         break;
     }
@@ -514,6 +542,7 @@ void searchNetwork(App *self, int nodeID) {
             } else {
                 self->nodes[i] = (Node) {nodeID, MUSICIAN, ALIVE};
             }
+            self->numOfNodes++;
             break;
         }
     }
@@ -547,7 +576,9 @@ void claimExistence(App* self, int nodeID) {
             } else {
                 self->nodes[i] = (Node) {nodeID, MUSICIAN, ALIVE};
             }
+            self->numOfNodes++;
             break;
+            
         }
     }
 }
@@ -569,7 +600,9 @@ void claimExistenceRPC(App* self, int nodeID) {
 void printView(App *self, int c) {
     char tempBuffer[50];
     SCI_WRITE(&sci0, "---------------------------------------------------\n");
-    SCI_WRITE(&sci0, "System view: ");
+    SCI_WRITE(&sci0, "System view: \n");
+    sprintf(tempBuffer, "alive nodes in the system: %d\n", self->numOfNodes);
+    SCI_WRITE(&sci0, tempBuffer);
     for (size_t i = 0; i < 3; i++)
     {   
         if (self->nodes[i].id == 0) {
@@ -588,6 +621,112 @@ void printView(App *self, int c) {
     }
     SCI_WRITE(&sci0, "\n");
     
+}
+
+void leaderElection(App* self, int c) {
+    if (self->vote == -1) {
+        SCI_WRITE(&sci0, "I will vote you. \n");
+        vote = (voteREplyMessge) {c, 1};
+        ASYNC(self, voteReplyRPC, &vote);
+    } else {
+        SCI_WRITE(&sci0, "Voted another one, sorry. \n");
+        vote = (voteREplyMessge) {c, 0};
+        ASYNC(self, voteReplyRPC, &vote);
+
+    }
+}
+void leaderElectionRPC(App* self, int c) {
+    CANMsg msg;
+    self->vote = self->Id; // vote self
+    self->numofvots = 1;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = CLAIM_CONDUCTORSHIP; 
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    CAN_SEND(&can0, &msg);
+    SCI_WRITE(&sci0, "leaderElectionRPC sent.\n");
+    return;
+}
+
+void voteReplyRPC(App* self, int c) {
+    voteREplyMessge* a = (voteREplyMessge*) c;
+    CANMsg msg;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = ANSWER_TO_CLAIM_CONDUCTORSHIP; 
+    msg.buff[RECEIVER] = a->nodeid;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    if (a->vote == 1) {
+        msg.buff[5] = 1;
+    } else {
+        msg.buff[5] = 0;
+    }
+    CAN_SEND(&can0, &msg);
+    SCI_WRITE(&sci0, "voteReplyRPC sent.\n");
+    return;
+}
+
+void voteReply(App *self, int c) {
+    if (c == 1) {
+        self->numofvots++;
+        SCI_WRITE(&sci0, "One node voted me\n");
+        if (self->numOfNodes == self->numofvots) {
+            SCI_WRITE(&sci0, "Now I have enough votes, I am a conductor! \n");
+            self->numofvots = 0;
+            self->mod = CONDUCTOER;
+            self->vote = -1;
+            ASYNC(&app, imLeaderRPC, 0);
+        }
+    } else {
+        SCI_WRITE(&sci0, "One node dit not vote me\n");
+    }
+}
+
+void imLeader(App* self, int c) {
+    char t[100];
+    self->vote = -1;
+    if (self->mod == CONDUCTOER) {
+        self->mod = MUSICIAN;
+        sprintf(t, "node %d is conductor now, I am no longer a conductor \n", c);
+        SCI_WRITE(&sci0, &t);
+    } else {
+        sprintf(t, "node %d is conductor now, I am still a musician \n", c);
+        SCI_WRITE(&sci0, &t);
+    }
+    ASYNC(&app, changeSysView, c);
+}
+
+void changeSysView(App *self, int c) {
+    for (size_t i = 0; i < 3; i++)
+    {
+
+       if (self->nodes[i].id == c) {
+            self->nodes[i].mod = CONDUCTOER;
+       } else if (self->nodes[i].id != 0) {
+            self->nodes[i].mod = MUSICIAN;
+       }
+    }
+    
+}
+void imLeaderRPC(App* self, int c) {
+    CANMsg msg;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = IAMLEADER; 
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    CAN_SEND(&can0, &msg);
+    SCI_WRITE(&sci0, "imLeaderRPC sent.\n");
+    return;
 }
 ///////////////////////////////////////////////////////////
 // tone generator
@@ -699,8 +838,26 @@ void stopTG(ToneGenerator* self, int c) {
 
 }
 
+void printMute5s(ToneGenerator* self, int c) {
+    int role = SYNC(&app, getRole, 0);
+    if (role == CONDUCTOER) {
+        return;
+    }
+    if (!self->muted || !self->enablePrint) {
+        return;
+    }
+    SCI_WRITE(&sci0, "muted!\n");
+    AFTER(SEC(5), self, printMute5s, 0);
+}
 
-
+void enablePrint(ToneGenerator* self, int c) {
+    if (self->enablePrint && self->muted) {
+        self->enablePrint = false;
+    } else {
+        self->enablePrint = true;
+        ASYNC(self, printMute5s, 0);
+    }
+}
 
 ///////////////////////////////////////////////////////////
 // music player
@@ -765,17 +922,7 @@ void changeKeyRPC(MusicPlayer* self, int c) {
     msg.length = 7;
     msg.buff[OPCODE] = MUSIC_SET_KEY; 
     msg.buff[RECEIVER] = BROADCAST;
-    // if (c > 0) {
-    //     msg.buff[2] = 0;
-    //     msg.buff[3] = 0;
-    //     msg.buff[4] = 0;
-    //     msg.buff[5] = c;
-    // } else {
-    //     msg.buff[2] = 1;
-    //     msg.buff[3] = 0;
-    //     msg.buff[4] = 0;
-    //     msg.buff[5] = 0-c;
-    // }
+ 
     for (int i = 5; i >= 2; i--) {
         msg.buff[i] = c;
         c = c >> 8;
@@ -791,17 +938,7 @@ void changeTempoRPC(MusicPlayer* self, int c) {
     msg.length = 7;
     msg.buff[OPCODE] = MUSIC_SET_TEMPO; 
     msg.buff[RECEIVER] = BROADCAST;
-    // if (c > 0) {
-    //     msg.buff[2] = 0;
-    //     msg.buff[3] = 0;
-    //     msg.buff[4] = 0;
-    //     msg.buff[5] = c;
-    // } else {
-    //     msg.buff[2] = 1;
-    //     msg.buff[3] = 0;
-    //     msg.buff[4] = 0;
-    //     msg.buff[5] = 0-c;
-    // }
+
     for (int i = 5; i >= 2; i--) {
         msg.buff[i] = c;
         c = c >> 8;
@@ -860,7 +997,7 @@ void startDS(MusicPlayer* self, int c) {
 void stopAndSend(MusicPlayer* self, int noteIndex) {
     int receiverID;
     ASYNC(&tg, stopTG, 0);
-    receiverID = (SYNC(&app, getId, 0)) % 2 + 1;   // test 2  /// 3
+    receiverID = (SYNC(&app, getId, 0)) % NODES + 1;   // test 2  /// 3
     play1NoteRPC(noteIndex+1, receiverID);
     SCI_WRITE(&sci0, "stopMp and sent instruction to next processor \n");
 
@@ -895,15 +1032,16 @@ void press(Button* self, int c) {
         if (role == MUSICIAN) {
             if (SYNC(&tg, checkMuted, 0))        // sycn will return a value
             {
-                ASYNC(&tg, lockRequest, (int)mute);
+                SYNC(&tg, lockRequest, (int)mute);
+                AFTER(SEC(1), &tg, printMute5s, 0);
             } else {
-                ASYNC(&tg, mute, 0);  
+                ASYNC(&tg, mute, 0);
+                  
             }
             
         }
         SCI_WRITE(&sci0, "button pressed\n");
         Time now = T_SAMPLE(&self->timer);
-        Time sinceLast = now - self->last;
         self->last = now;
         self->count++;
         AFTER(SEC(1), &bt, check1Sec, self->count);
