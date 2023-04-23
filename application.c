@@ -34,12 +34,11 @@
  */
 
 
-#define MAX_SIZE 100
+#define QUEUE_SIZE 100
 
 typedef struct {
-    int items[MAX_SIZE];
-    int front;
-    int rear;
+    int queue[QUEUE_SIZE];
+    int front, rear;
 } Queue;
 
 typedef struct {
@@ -53,6 +52,7 @@ typedef struct {
     Timer timer;
     Queue q;
     Time lastConsume;
+    bool burst;
 } App;
 
 typedef struct {
@@ -125,6 +125,7 @@ void newrec(App*, int);
 void foo(App*, int);
 void changeDelta(App*, int);
 void consumer(App*, int);
+void burst(App*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -157,13 +158,13 @@ void startled(LED*, int);
 void stopled(LED*, int);
 
 void initQueue(Queue* q);
-void enqueue(Queue* q, int item);
+int enqueue(Queue* q, int item);
 int dequeueMY(Queue* q);
 int isEmpty(Queue* q);
-int isFull(Queue* q);
+
 
 ///////////////////////////////////////////////////////////
-App app = { initObject(), initCallBlock(),0 , {}, CONDUCTOER, 0, SEC(1),initTimer(), {}, 0};
+App app = { initObject(), initCallBlock(),0 , {}, CONDUCTOER, 0, SEC(1),initTimer(), {}, 0, false};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Semaphore bufferlock = initSemaphore(1);///
@@ -179,35 +180,33 @@ Regulator reg = {initObject(), initCallBlock(), SEC(1),initTimer(), 0};
 
 
 void initQueue(Queue* q) {
-    q->front = 0;
-    q->rear = -1;
+    q->front = q->rear = 0;
 }
-
-void enqueue(Queue* q, int item) {
-    if (isFull(q)) {
-        SCI_WRITE(&sci0, "Error: Queue is full, discard the msg\n");
-        return;
+int enqueue(Queue* q, int value) {
+    int next_rear = (q->rear + 1) % QUEUE_SIZE;
+    if (next_rear == q->front) {
+        SCI_WRITE(&sci0, "Queue is full!, discard the msg\n");
+        return -1;
+    } else {
+        q->queue[q->rear] = value;
+        q->rear = next_rear;
+        return 0;
     }
-    q->rear++;
-    q->items[q->rear] = item;
 }
 
 int dequeueMY(Queue* q) {
-    if (isEmpty(q)) {
-        // SCI_WRITE(&sci0, "Error: Queue is empty\n");
-        return -1;
+    if (q->front == q->rear) {
+        
+        return -1; // Or some other value to indicate an error
+    } else {
+        int value = q->queue[q->front];
+        q->front = (q->front + 1) % QUEUE_SIZE;
+        return value;
     }
-    int item = q->items[q->front];
-    q->front++;
-    return item;
 }
 
 int isEmpty(Queue* q) {
-    return q->front > q->rear;
-}
-
-int isFull(Queue* q) {
-    return q->rear == MAX_SIZE - 1;
+    return q->front == q->rear;
 }
 ///   
 
@@ -229,8 +228,11 @@ void newrec(App *self, int unused) {
         SCI_WRITE(&sci0, tempBuffer);
         self->lastConsume = now;
     } else {    // add to buffer
-        enqueue(&self->q, msg_id);
-        SCI_WRITE(&sci0, "interval time > delta and buffer is not empty, add to buffer \n");
+        int a = enqueue(&self->q, msg_id);
+        if (a == 0) {
+            SCI_WRITE(&sci0, "interval time > delta and buffer is not empty, add to buffer \n");
+        }
+        
 
     }
     
@@ -419,10 +421,33 @@ void reader(App *self, int c) {
         SCI_WRITE(&sci0, "Please input the delta(1s,2s,5s) you want:\n");
         deltabool = true;
         break;
+    case 'B':    // enter burst mode
+        self->burst = false;
+        SCI_WRITE(&sci0, "enter burst mode \n");
+        ASYNC(&app, burst, 0);
+        break;
+    case 'X':
+        self->burst = true;
+        SCI_WRITE(&sci0, "quit burst mode \n");
+        break;
     default:
         break;
     }
    
+}
+
+void burst(App *self, int c) {
+    if (self->burst) {
+        return; 
+    }
+    CANMsg msg;
+    msg.nodeId = 1;
+    msg.msgId = self->msgid;
+    msg.length = 0;
+    self->msgid++;
+    CAN_SEND(&can0, &msg);
+
+    SEND(MSEC(500), USEC(10), self, burst, 0);
 }
 void changeDelta(App *self, int c) {
     self->delta = SEC(c);
