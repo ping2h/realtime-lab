@@ -34,11 +34,25 @@
  */
 
 
+#define MAX_SIZE 100
+
+typedef struct {
+    int items[MAX_SIZE];
+    int front;
+    int rear;
+} Queue;
+
 typedef struct {
     Object super;
+    CallBlock callBlock;
     int index;
     char buffer[50];
     int mod;
+    int msgid;
+    Time delta;
+    Timer timer;
+    Queue q;
+    Time lastConsume;
 } App;
 
 typedef struct {
@@ -79,6 +93,14 @@ typedef struct
     int start;
 } LED;
 
+typedef struct {
+    Object super;
+    CallBlock callblock;
+    Time delta;
+    Timer timer;
+    Time lastConsume;
+} Regulator;
+
 
 
 
@@ -92,12 +114,17 @@ char tempos[] = {'a','a','a','a','a','a','a','a','a','a',
                 'a','b'};
 bool keybool = false;  
 bool tempobool = false;
+bool deltabool = false;
 
 
 
 ///////////////////////////////////////////////////////////
 void reader(App*, int);
 void receiver(App*, int);
+void newrec(App*, int);
+void foo(App*, int);
+void changeDelta(App*, int);
+void consumer(App*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -129,24 +156,87 @@ void changeLed(LED*, int);
 void startled(LED*, int);
 void stopled(LED*, int);
 
-
+void initQueue(Queue* q);
+void enqueue(Queue* q, int item);
+int dequeueMY(Queue* q);
+int isEmpty(Queue* q);
+int isFull(Queue* q);
 
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0 , {}, CONDUCTOER};
+App app = { initObject(), initCallBlock(),0 , {}, CONDUCTOER, 0, SEC(1),initTimer(), {}, 0};
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
-Can can0 = initCan(CAN_PORT0, &app, receiver); 
+Semaphore bufferlock = initSemaphore(1);///
+Can can0 = initCan(CAN_PORT0, &app, newrec); 
 Button bt = {initObject(), initTimer(), 0, 0, MOMENTARY, {}};
 SysIO button = initSysIO(SIO_PORT0, &bt, press);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false,TRUE}; // 500 USEC 650USEC 931USEC
 MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
 LED led = {initObject(), 120, TRUE};
+Regulator reg = {initObject(), initCallBlock(), SEC(1),initTimer(), 0};
 
 
+
+
+void initQueue(Queue* q) {
+    q->front = 0;
+    q->rear = -1;
+}
+
+void enqueue(Queue* q, int item) {
+    if (isFull(q)) {
+        SCI_WRITE(&sci0, "Error: Queue is full, discard the msg\n");
+        return;
+    }
+    q->rear++;
+    q->items[q->rear] = item;
+}
+
+int dequeueMY(Queue* q) {
+    if (isEmpty(q)) {
+        // SCI_WRITE(&sci0, "Error: Queue is empty\n");
+        return -1;
+    }
+    int item = q->items[q->front];
+    q->front++;
+    return item;
+}
+
+int isEmpty(Queue* q) {
+    return q->front > q->rear;
+}
+
+int isFull(Queue* q) {
+    return q->rear == MAX_SIZE - 1;
+}
+///   
 
 
 ///////////////////////////////////////////////////////////
 // app
+void newrec(App *self, int unused) {
+    CANMsg msg;
+    CAN_RECEIVE(&can0, &msg);
+    char tempBuffer[50];
+    int msg_id = msg.msgId;
+    SCI_WRITE(&sci0, "---------------------------------------------------\n");
+     
+    Time now = T_SAMPLE(&self->timer);
+    if (now - self->lastConsume > self->delta && isEmpty(&self->q) ) {  // deliver immediately
+        sprintf(tempBuffer, "msg id: %d\n", msg_id);
+        SCI_WRITE(&sci0, tempBuffer);
+        sprintf(tempBuffer, "since start: %d\n", now / 100000);
+        SCI_WRITE(&sci0, tempBuffer);
+        self->lastConsume = now;
+    } else {    // add to buffer
+        enqueue(&self->q, msg_id);
+        SCI_WRITE(&sci0, "interval time > delta and buffer is not empty, add to buffer \n");
+
+    }
+    
+    
+}
+
 void receiver(App *self, int unused) {
     CANMsg msg;
     CAN_RECEIVE(&can0, &msg);
@@ -252,7 +342,16 @@ void reader(App *self, int c) {
             tempobool = false;
             msg.msgId = 2;
         }
-        CAN_SEND(&can0, &msg);
+        if (deltabool) {
+            if (bufferValue != 1 && bufferValue != 2 && bufferValue != 5) {
+                SCI_WRITE(&sci0, " 1,2, 5s, try again!\n");
+                break;
+            }
+            deltabool = false;
+            ASYNC(&app, changeDelta, bufferValue);
+            deltabool = false;
+        }
+        // CAN_SEND(&can0, &msg);
         break;
     case 30:   //up
         msg.length = 0;
@@ -313,19 +412,59 @@ void reader(App *self, int c) {
             SCI_WRITE(&sci0, "Change to conductoer mod\n");
         }
         break;
+    case 'O':
+        ASYNC(&app, foo, 0);
+        break;
+    case 'D':    // change delta
+        SCI_WRITE(&sci0, "Please input the delta(1s,2s,5s) you want:\n");
+        deltabool = true;
+        break;
     default:
         break;
     }
    
 }
+void changeDelta(App *self, int c) {
+    self->delta = SEC(c);
+    SCI_WRITE(&sci0, "change delta successfully\n");
 
+}
+void foo(App *self, int c) {
+    CANMsg msg;
+    msg.nodeId = 1;
+    msg.length = 0;
+    msg.msgId = self->msgid;
+    self->msgid++;
+    CAN_SEND(&can0, &msg);
 
+}
+
+void consumer(App *self, int c) {
+    char tempBuffer[50]; 
+    if (!isEmpty(&self->q)) {
+        Time now = T_SAMPLE(&self->timer);
+        int msg_id = dequeueMY(&self->q);
+        sprintf(tempBuffer, "msg id: %d\n", msg_id);
+        SCI_WRITE(&sci0, tempBuffer);
+        sprintf(tempBuffer, "since start: %d\n", now / 100000);
+        SCI_WRITE(&sci0, tempBuffer);
+        self->lastConsume = now;
+    } else {
+        SCI_WRITE(&sci0, "buffer is empty \n");
+    }
+    SEND(self->delta, USEC(10), self, consumer, 0);
+}   
 void startApp(App *self, int arg) {
-    
+    T_RESET(&self->timer);   /////////
+    initQueue(&self->q);
+    // char t[50];
     SCI_INIT(&sci0); 
     CAN_INIT(&can0);
     SIO_INIT(&button); 
     SCI_WRITE(&sci0, "Hello, hello...\n");
+    // sprintf(t, "f %d, r %d", self->q.front, self->q.rear);
+    // SCI_WRITE(&sci0, t);
+    ASYNC(self, consumer, 0);
     ASYNC(&tg, tick, 0);                   
     ASYNC(&mp, play, 0); 
     ASYNC(&mp, stop, 0);
