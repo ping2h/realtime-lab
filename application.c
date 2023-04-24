@@ -101,7 +101,10 @@ typedef struct {
     Time lastConsume;
 } Regulator;
 
-
+typedef struct {
+    int c;
+    Method m;
+} amessage;
 
 
 ///////////////////////////////////////////////////////////
@@ -128,6 +131,7 @@ void consumer(App*, int);
 void trueConsumer(App*, int);
 void burst(App*, int);
 void bufferLockRequest(App*, int);
+void producer2(App*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -229,6 +233,11 @@ void newrec(App *self, int unused) {
         sprintf(tempBuffer, "since start: %d\n", now / 100000);
         SCI_WRITE(&sci0, tempBuffer);
         self->lastConsume = now;
+    } else if (isEmpty(&self->q)) {    // In this case, there will be chance that producer and consumer change buffer in parallel. To avoid competition, use lock.
+        amessage* a = malloc(sizeof(amessage));
+        a->c = msg_id;
+        a->m = producer2;
+        ASYNC(self, bufferLockRequest, (int) a);  // TinyTimber parameters constrain..., we can only use int. The semaphore package is changed.
     } else {    // add to buffer
         int a = enqueue(&self->q, msg_id);
         if (a == 0) {
@@ -239,6 +248,15 @@ void newrec(App *self, int unused) {
     }
     
     
+}
+
+void producer2(App *self, int c) {
+    int a = enqueue(&self->q, c);
+    if (a == 0) {
+        SCI_WRITE(&sci0, "interval time > delta and buffer is not empty, add to buffer \n");
+    }
+        
+    ASYNC(&bufferlock, Signal, 0);
 }
 
 void receiver(App *self, int unused) {
@@ -479,7 +497,10 @@ void consumer(App *self, int c) {
     // } else {
     //     SCI_WRITE(&sci0, "buffer is empty \n");
     // }
-    ASYNC(self, bufferLockRequest, (int)trueConsumer);
+    amessage* a = malloc(sizeof(amessage));
+    a->c = 0;
+    a->m = trueConsumer;
+    ASYNC(self, bufferLockRequest, (int) a);
     
 }   
 
@@ -521,8 +542,11 @@ void startApp(App *self, int arg) {
 }
 
 void bufferLockRequest(App* self, int c) {
+    amessage* a = c;
     self->callBlock.obj = self;
-    self->callBlock.meth = (Method)c;
+    self->callBlock.meth = a->m;
+    self->callBlock.p = a->c;
+    free(a);
     ASYNC(&bufferlock, Wait, (int)&self->callBlock);
 }
 

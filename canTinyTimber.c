@@ -1,7 +1,7 @@
 #include "TinyTimber.h"
 #include "canTinyTimber.h"
 
-//#define	__CAN_LOOPBACK	// Note: requires physical loopback between CAN 1 and 2 jacks
+#define	__CAN_LOOPBACK	// Note: requires physical loopback between CAN 1 and 2 jacks
 
 void DUMP(char *s);
 
@@ -17,7 +17,7 @@ void can_init(Can *self, int unused) {
 	DUMP("NOTE: CAN running in loopback mode!\n\r");
 #endif
 
-//#define	__CAN_TxAck // if defined: single transmission, can_send() will wait for message error or acknowledgement
+#define	__CAN_TxAck // if defined: single transmission, can_send() will wait for message error or acknowledgement
                     //  default: automatic retransmission, can_send() will not wait for message error or acknowledgement
                         
 	CAN_StructInit(&CAN_InitStructure);

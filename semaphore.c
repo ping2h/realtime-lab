@@ -25,7 +25,7 @@ void Wait(Semaphore *self, int c) {
     Caller wakeup = (Caller) c;  // type-cast back from ‘int’
     if (self->value > 0) {
         self->value--;
-        ASYNC(wakeup->obj, wakeup->meth, 0);		
+        ASYNC(wakeup->obj, wakeup->meth, wakeup->p);		
     }
     else
         c_enqueue(wakeup, &self->queue);

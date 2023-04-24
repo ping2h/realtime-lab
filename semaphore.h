@@ -10,6 +10,7 @@ typedef struct call_block {
     Caller	next;	// for use in linked lists
     Object	*obj;
     Method	meth;
+    int p;   // parameter
 } CallBlock;
 
 #define initCallBlock() { 0, 0, 0 }
