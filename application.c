@@ -125,7 +125,9 @@ void newrec(App*, int);
 void foo(App*, int);
 void changeDelta(App*, int);
 void consumer(App*, int);
+void trueConsumer(App*, int);
 void burst(App*, int);
+void bufferLockRequest(App*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -465,6 +467,23 @@ void foo(App *self, int c) {
 }
 
 void consumer(App *self, int c) {
+    // char tempBuffer[50]; 
+    // if (!isEmpty(&self->q)) {
+    //     Time now = T_SAMPLE(&self->timer);
+    //     int msg_id = dequeueMY(&self->q);
+    //     sprintf(tempBuffer, "msg id: %d\n", msg_id);
+    //     SCI_WRITE(&sci0, tempBuffer);
+    //     sprintf(tempBuffer, "since start: %d\n", now / 100000);
+    //     SCI_WRITE(&sci0, tempBuffer);
+    //     self->lastConsume = now;
+    // } else {
+    //     SCI_WRITE(&sci0, "buffer is empty \n");
+    // }
+    ASYNC(self, bufferLockRequest, (int)trueConsumer);
+    
+}   
+
+void trueConsumer(App *self, int c) {
     char tempBuffer[50]; 
     if (!isEmpty(&self->q)) {
         Time now = T_SAMPLE(&self->timer);
@@ -477,8 +496,9 @@ void consumer(App *self, int c) {
     } else {
         SCI_WRITE(&sci0, "buffer is empty \n");
     }
+    ASYNC(&bufferlock, Signal, 0);
     SEND(self->delta, USEC(10), self, consumer, 0);
-}   
+}
 void startApp(App *self, int arg) {
     T_RESET(&self->timer);   /////////
     initQueue(&self->q);
@@ -500,7 +520,11 @@ void startApp(App *self, int arg) {
 
 }
 
-
+void bufferLockRequest(App* self, int c) {
+    self->callBlock.obj = self;
+    self->callBlock.meth = (Method)c;
+    ASYNC(&bufferlock, Wait, (int)&self->callBlock);
+}
 
 
 ///////////////////////////////////////////////////////////
