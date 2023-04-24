@@ -28,7 +28,7 @@
 #define MUSIC_SET_KEY 9
 #define MUSIC_SET_TEMPO 10
 #define NODES 2
-#define ID 1
+#define ID 2
 
 
 /* 
@@ -537,11 +537,7 @@ void searchNetwork(App *self, int nodeID) {
             break;
         }
         if (self->nodes[i].id == 0) {
-            if (nodeID == 1) {
-                self->nodes[i] = (Node) {nodeID, CONDUCTOER, ALIVE};
-            } else {
-                self->nodes[i] = (Node) {nodeID, MUSICIAN, ALIVE};
-            }
+            self->nodes[i] = (Node) {nodeID, MUSICIAN, ALIVE};
             self->numOfNodes++;
             break;
         }
@@ -571,11 +567,7 @@ void claimExistence(App* self, int nodeID) {
             break;
         }
         if (self->nodes[i].id == 0) {
-            if (nodeID == 1) {
-                self->nodes[i] = (Node) {nodeID, CONDUCTOER, ALIVE};
-            } else {
-                self->nodes[i] = (Node) {nodeID, MUSICIAN, ALIVE};
-            }
+            self->nodes[i] = (Node) {nodeID, MUSICIAN, ALIVE};
             self->numOfNodes++;
             break;
             
@@ -681,6 +673,7 @@ void voteReply(App *self, int c) {
             self->numofvots = 0;
             self->mod = CONDUCTOER;
             self->vote = -1;
+            ASYNC(&app, changeSysView, self->Id);
             ASYNC(&app, imLeaderRPC, 0);
         }
     } else {
