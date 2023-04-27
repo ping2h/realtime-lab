@@ -3,6 +3,7 @@
 
 #include "stm32f4xx.h"
 #include "stm32f4xx_can.h"
+#include "stdbool.h"
 
 typedef unsigned char uchar;
 
@@ -11,6 +12,7 @@ typedef struct {
 	uchar nodeId; //Valid values: 0-15
 	uchar length;
 	uchar buff[8];
+	bool slient; // slient mode
 } CANMsg;
 
 #define CAN_BUFSIZE 8

@@ -86,7 +86,7 @@ typedef struct {
     int numofvots; // 0
     bool silent;
     int preNodeID;
-    
+    int disconnecttime;
 } App;
 
 
@@ -154,7 +154,6 @@ void reader(App*, int);
 void receiver(App*, int);
 void newrec(App*, int);
 // initally broadcast
-void pitchSelfRPC(int);
 int getId(App*, int);  //get the ID of the node
 void searchNetwork(App*, int);
 void searchNetworkRPC(App*, int);
@@ -172,15 +171,18 @@ void changeSysView(App*, int);
 void cometolife(App*, int);
 void backUp(App*, int);
 int getPreNodeID(App*, int);
-void detectRPC();
+void detectRPC(bool);
 void detect(App *, int);
 void checkAndNotify(App *, int);
 void detectReply(App *, int);
-void notifyRPC(int, int);
+void notifyRPC(int, int, bool);
 void notifyLocal(App *, int);
-void getIfslient(App*, int);
+int getIfslient(App*, int);
 void abortRPC(int);
-void abortmy(MusicPlayer*, int);
+void abortmy(MusicPlayer*, int); // suffix my: beacuse name confilc.
+void disconnectCheckThread(App *, int);
+void connectCheckThread(App*, int);
+
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -212,7 +214,7 @@ void play1Note(MusicPlayer*, int);
 void stopAndSend(MusicPlayer*, int);
 void play1NoteRPC(int, int);
 void startDS(MusicPlayer*, int);
-void startRPC(int);
+void startRPC(int, bool);
 void changeKeyRPC(MusicPlayer*, int);
 void changeTempoRPC(MusicPlayer*, int);
 
@@ -225,7 +227,7 @@ void stopled(LED*, int);
 
 
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0 , {}, MUSICIAN, 1, {}, ID, -1, 0, false, 10}; // 
+App app = { initObject(), 0 , {}, MUSICIAN, 1, {}, ID, -1, 0, false, 10, 0}; // 
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, newrec); 
@@ -509,7 +511,7 @@ void reader(App *self, int c) {
     case 'P': // conductor plays the first note and send message to other nodes.
         if (self->mod == CONDUCTOER) {
             SYNC(&mp, startDS, 0);
-            startRPC(self->Id);
+            startRPC(self->Id, self->silent);
             ASYNC(&mp, play1Note, 0);
         }
         break;
@@ -554,33 +556,27 @@ void reader(App *self, int c) {
    
 }
 
-void startRPC(int nodeId) {
+void startRPC(int nodeId, bool slient) {
     CANMsg msg;
     msg.nodeId = nodeId;
     msg.length = 7;
     msg.buff[OPCODE] = MUSIC_START_ALL; 
     msg.buff[RECEIVER] = BROADCAST; // broadcast
-
+    msg.slient = slient;
     CAN_SEND(&can0, &msg);
     return;
 }
-void pitchSelfRPC(int nodeId) {
-    CANMsg msg;
-    msg.nodeId = nodeId;
-    msg.length = 7;
-    msg.buff[OPCODE] = 0x00; // claim myself
-    msg.buff[RECEIVER] = 0x00;  /////
-    msg.buff[2] = 0; ///
-    CAN_SEND(&can0, &msg);
-    return;
 
-}
 int getId(App* self, int c) {
     return self->Id;
 }
 
 int getRole(App *self, int c) {
     return self->mod;
+}
+
+int getIfslient(App *self, int c) {
+    return self->silent ? SILENT:ALIVE;
 }
 void startApp(App *self, int arg) {
     char tempBuffer[50];
@@ -629,6 +625,8 @@ void searchNetworkRPC(App *self, int c) {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
+  
+    msg.slient = self->silent;
     CAN_SEND(&can0, &msg);
     SCI_WRITE(&sci0, "searchNetworkRPC sent.\n");
     return;
@@ -658,6 +656,8 @@ void claimExistenceRPC(App* self, int nodeID) {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
+    
+    msg.slient = self->silent;
     CAN_SEND(&can0, &msg);
     SCI_WRITE(&sci0, "claimExistenceRPC sent.\n");
     return;
@@ -713,6 +713,8 @@ void leaderElectionRPC(App* self, int c) {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
+   
+    msg.slient = self->silent;
     CAN_SEND(&can0, &msg);
     SCI_WRITE(&sci0, "leaderElectionRPC sent.\n");
     return;
@@ -733,6 +735,8 @@ void voteReplyRPC(App* self, int c) {
     } else {
         msg.buff[5] = 0;
     }
+    
+    msg.slient = self->silent;
     CAN_SEND(&can0, &msg);
     SCI_WRITE(&sci0, "voteReplyRPC sent.\n");
     return;
@@ -791,6 +795,8 @@ void imLeaderRPC(App* self, int c) {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
+  
+    msg.slient = self->silent;
     CAN_SEND(&can0, &msg);
     SCI_WRITE(&sci0, "imLeaderRPC sent.\n");
     return;
@@ -810,14 +816,14 @@ void backUp(App *self, int c) {
             self->nodes[i].state = SILENT;
         }
     }
-    detectRPC();
+    detectRPC(self->silent);
     AFTER(MSEC(50), &app, checkAndNotify, 0);
     //notify
     ASYNC(self, checkAndNotify, 0);
     // ASYNC(&mp, play1Note, c);
     //find next node to play
 }
-void detectRPC() {
+void detectRPC(bool silent) {
     CANMsg msg;
     msg.nodeId = SYNC(&app, getId, 0);
     msg.length = 7;
@@ -827,6 +833,7 @@ void detectRPC() {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
+    msg.slient = silent;
     CAN_SEND(&can0, &msg);
     return;
 }
@@ -851,6 +858,8 @@ void detectReply(App *self, int c) {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
+    
+    msg.slient = self->silent;
     CAN_SEND(&can0, &msg);
     return;
 }
@@ -861,7 +870,7 @@ void checkAndNotify(App *self, int c) {
         {
             if (self->nodes[i].state == SILENT) {
                 // notify
-                notifyRPC(self->Id, self->nodes[i].id);
+                notifyRPC(self->Id, self->nodes[i].id, self->silent);
                 if (self->nodes[i].mod == CONDUCTOER) {
                     // elect
                 }
@@ -872,7 +881,7 @@ void checkAndNotify(App *self, int c) {
     
 }
 
-void notifyRPC(int id, int deadid) {
+void notifyRPC(int id, int deadid, bool silent) {
     CANMsg msg;
     msg.nodeId = id;
     msg.length = 7;
@@ -882,6 +891,7 @@ void notifyRPC(int id, int deadid) {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = deadid;
+    msg.slient = silent;
     CAN_SEND(&can0, &msg);
     return;
 }
@@ -891,7 +901,7 @@ void notifyLocal(App *self, int c) {
     {
         if (self->nodes[i].id == c)
         {
-            self->nodes[i].state == SILENT;
+            self->nodes[i].state = SILENT;
         }
         
     }
@@ -899,6 +909,56 @@ void notifyLocal(App *self, int c) {
 }
 int getPreNodeID(App *self, int c) {
     return self->preNodeID;
+}
+
+void disconnectCheckThread(App *self, int c) {   // boot at beginning
+    CANMsg msg;
+    int isdisconnect;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = 66;  // do nothing
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    msg.slient = self->silent;
+    isdisconnect =  CAN_SEND(&can0, &msg);
+    if (isdisconnect == -1) { // f1 f2 mode, this is no need to loop! remember to reboot when come to life
+        return; 
+    }
+    self->disconnecttime += isdisconnect;
+    if (self->disconnecttime < 3) {
+        // success keep checking
+        AFTER(MSEC(100), self, disconnectCheckThread, 0);
+    } else if (self->disconnecttime == 3){
+        // fail . boot another thread to check if i connect to system again?
+        ASYNC(self, connectCheckThread, 0);
+    }
+}
+
+void connectCheckThread(App *self, int c) {
+    CANMsg msg;
+    int isdisconnect;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = 66;  // do nothing
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    msg.slient = self->silent;
+    isdisconnect =  CAN_SEND(&can0, &msg);
+    if (isdisconnect != 0 ) {
+        // still fail,  keep checking
+        AFTER(MSEC(100), self, connectCheckThread, 0);
+    } else {
+        // success, do something
+        self->disconnecttime = 0;
+        //  do something
+        ASYNC(self, )
+    }
 }
 ///////////////////////////////////////////////////////////
 // tone generator
@@ -1110,7 +1170,8 @@ void changeKeyRPC(MusicPlayer* self, int c) {
         msg.buff[i] = c;
         c = c >> 8;
     }
-    
+    int ifslient = SYNC(&app, getIfslient, 0);
+    msg.slient = ifslient == SILENT? true: false;
     CAN_SEND(&can0, &msg);
     return;
 }
@@ -1126,7 +1187,8 @@ void changeTempoRPC(MusicPlayer* self, int c) {
         msg.buff[i] = c;
         c = c >> 8;
     }
-
+    int ifslient = SYNC(&app, getIfslient, 0);
+    msg.slient = ifslient == SILENT? true: false;
     CAN_SEND(&can0, &msg);
     return;
 }
@@ -1205,6 +1267,8 @@ void play1NoteRPC(int noteIndex, int receiverID) {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = noteIndex;
+    int ifslient = SYNC(&app, getIfslient, 0);
+    msg.slient = ifslient == SILENT? true: false;
     CAN_SEND(&can0, &msg);
     return;
 }
@@ -1221,6 +1285,8 @@ void abortRPC(int preNodeID) {
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
+    int ifslient = SYNC(&app, getIfslient, 0);
+    msg.slient = ifslient == SILENT? true: false;
     CAN_SEND(&can0, &msg);
     return;
 }

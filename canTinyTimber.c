@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include "TinyTimber.h"
 #include "canTinyTimber.h"
 
@@ -130,6 +131,10 @@ int can_receive(Can *self, CANMsg *msg){
 // Copy the given message to a transmit buffer and send the message
 //
 int can_send(Can *self, CANMsg *msg){
+	if (msg->slient) {
+		// silent mode, nothing
+		return -1;
+	}
     uchar index;
 	CAN_TypeDef* canport = self->port;
 	CanTxMsg TxMessage;
