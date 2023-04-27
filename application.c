@@ -42,8 +42,8 @@
 #define ALIVE 1
 #define SILENT 0
 
-#define NODES 2
-#define ID 2
+#define NODES 3
+#define ID 1
 
 
 
@@ -73,6 +73,12 @@ typedef struct {
     uchar state;    // alive or slient
 } Node;
 
+typedef struct  
+{
+    /* data */
+    Msg msg;
+    int id;
+} msgstr;
 
 typedef struct {
     Object super;
@@ -86,7 +92,7 @@ typedef struct {
     int numofvots; // 0
     bool silent;
     int preNodeID;
-    int disconnecttime;
+    msgstr msgs[2];
 } App;
 
 
@@ -167,22 +173,26 @@ void imLeader(App*, int);
 void imLeaderRPC(App*, int);
 void voteReplyRPC(App*, int);
 void voteReply(App*, int);
+int numofalivenodes(App*, int);
+
 void changeSysView(App*, int);
 void cometolife(App*, int);
 void backUp(App*, int);
 int getPreNodeID(App*, int);
-void detectRPC(bool);
-void detect(App *, int);
-void checkAndNotify(App *, int);
-void detectReply(App *, int);
+void detectofflinenodelocal(App *, int);
 void notifyRPC(int, int, bool);
 void notifyLocal(App *, int);
 int getIfslient(App*, int);
 void abortRPC(int);
 void abortmy(MusicPlayer*, int); // suffix my: beacuse name confilc.
-void disconnectCheckThread(App *, int);
+int disconnectCheckThread(App *, int);
 void connectCheckThread(App*, int);
-
+void failureNodeDetection(App*, int);
+void detectofflinenodeRPC(App *, int);
+void abortkickoff(App *, int);
+void kickoff(App*, int);
+void notifyNodeOff(int, int);
+int  isConductorAlive(App*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -227,7 +237,7 @@ void stopled(LED*, int);
 
 
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0 , {}, MUSICIAN, 1, {}, ID, -1, 0, false, 10, 0}; // 
+App app = { initObject(), 0 , {}, MUSICIAN, 1, {}, ID, -1, 0, false, 10, {}}; // 
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, newrec); 
@@ -314,18 +324,17 @@ void newrec(App *self, int unused) {
         SCI_WRITE(&sci0, "abort backup no failure");
         break;
     case DETECT_OFFLINE_NODE:
-        ASYNC(&app, detectReply, msg.nodeId);
+        ASYNC(&app, detectofflinenodelocal, msg.nodeId);
         SCI_WRITE(&sci0, "someone is detecting, I give a response \n");
         break;
     case ANSWER_DETECT_OFFLINE:
-        ASYNC(&app, detect, msg.nodeId);
+        ASYNC(&app, abortkickoff, msg.nodeId);
         SCI_WRITE(&sci0, "detecting, receive a response \n");
         break;
     case NOTIFY_NODE_OFFLINE:
         ASYNC(&app, notifyLocal, msg.buff[5]);
         SCI_WRITE(&sci0, "receive a dead node notify \n");
         break;
-
     default:
         break;
     }
@@ -535,11 +544,13 @@ void reader(App *self, int c) {
         if (self->silent) {
             // come to life
             self->silent = false;
-            ASYNC(&app, searchNetworkRPC, 0);
+            // ASYNC(&app, searchNetworkRPC, 0);
+            // do something
             SCI_WRITE(&sci0, "I am alive \n");
         } else {
             // be silent
             self->silent = true;
+            ASYNC(self, connectCheckThread, 0);
             SCI_WRITE(&sci0, "I entered  Failure Mode F1 \n");
         }
         break;
@@ -547,6 +558,7 @@ void reader(App *self, int c) {
         // f2
         self->silent = true;
         SCI_WRITE(&sci0, "I entered  Failure Mode F2 \n");
+        ASYNC(self, connectCheckThread, 0);
         AFTER(SEC(5), &app, cometolife, 0);
         break;
 
@@ -587,6 +599,7 @@ void startApp(App *self, int arg) {
     ASYNC(&app, searchNetworkRPC, self->Id);
     sprintf(tempBuffer, "Node %d joined the system", self->Id);
     
+    
     SCI_WRITE(&sci0, tempBuffer);
     ASYNC(&app, printView, 0);
     ASYNC(&tg, tick, 0);                   
@@ -601,7 +614,7 @@ void startApp(App *self, int arg) {
 
 void searchNetwork(App *self, int nodeID) {
     ASYNC(&app, claimExistenceRPC, nodeID);    // show my existence to that newly joined node
-    for (size_t i = 0; i < 2; i++)             // change my system view
+    for (size_t i = 0; i < 3; i++)             // change my system view
     {
         if (self->nodes[i].id == nodeID) {
             break;
@@ -743,10 +756,14 @@ void voteReplyRPC(App* self, int c) {
 }
 
 void voteReply(App *self, int c) {
+    char t[50];
     if (c == 1) {
         self->numofvots++;
         SCI_WRITE(&sci0, "One node voted me\n");
-        if (self->numOfNodes == self->numofvots) {
+        int numofnodes = numofalivenodes(self, 0);
+        sprintf(t, "%d\t%d", numofnodes, self->numofvots);
+        SCI_WRITE(&sci0, t);
+        if ( numofnodes == self->numofvots) {
             SCI_WRITE(&sci0, "Now I have enough votes, I am a conductor! \n");
             self->numofvots = 0;
             self->mod = CONDUCTOER;
@@ -757,6 +774,19 @@ void voteReply(App *self, int c) {
     } else {
         SCI_WRITE(&sci0, "One node dit not vote me\n");
     }
+}
+
+int numofalivenodes(App *self, int c) {
+    int sum = 0;
+    for (size_t i = 0; i < 3; i++)
+    {
+        if (self->nodes[i].state == ALIVE) {
+            sum++;
+            SCI_WRITE(&sci0, "@@@@@@@@@@\n");
+        }
+    }
+    
+    return sum;
 }
 
 void imLeader(App* self, int c) {
@@ -803,83 +833,136 @@ void imLeaderRPC(App* self, int c) {
 }
 
 void cometolife(App *self, int c) {
-    self->silent = true;
-    ASYNC(self, searchNetwork, 0);
+    self->silent = false;
+    // dosomething 
 }
 
 void backUp(App *self, int c) {
     SCI_WRITE(&sci0, "fuck i need to deal with failure \n");
-    //detect and if is musican then relect
-    for (size_t i = 0; i < NODES; i++)
-    {
-        if (self->nodes[i].id != self->Id) {
-            self->nodes[i].state = SILENT;
+    
+    int disconnect = disconnectCheckThread(self, 0);
+    if (disconnect == 1) {
+        SCI_WRITE(&sci0, "i find i lost the connection \n");
+    } else {
+        SCI_WRITE(&sci0, "it is other nodes' failure\n");
+        failureNodeDetection(self, 0); // detect and notify
+        if(isConductorAlive(self, 0)) {   // leader election
+            leaderElectionRPC(self, 0);
         }
+
     }
-    detectRPC(self->silent);
-    AFTER(MSEC(50), &app, checkAndNotify, 0);
-    //notify
-    ASYNC(self, checkAndNotify, 0);
-    // ASYNC(&mp, play1Note, c);
-    //find next node to play
-}
-void detectRPC(bool silent) {
-    CANMsg msg;
-    msg.nodeId = SYNC(&app, getId, 0);
-    msg.length = 7;
-    msg.buff[OPCODE] = DETECT_OFFLINE_NODE; 
-    msg.buff[RECEIVER] = BROADCAST;
-    msg.buff[2] = 0; 
-    msg.buff[3] = 0;
-    msg.buff[4] = 0;
-    msg.buff[5] = 0;
-    msg.slient = silent;
-    CAN_SEND(&can0, &msg);
-    return;
 }
 
-void detect(App *self, int c) {
-    for (size_t i = 0; i < NODES; i++)
+void failureNodeDetection(App *self, int c) {
+    SCI_WRITE(&sci0, "11111111111111111\n");
+    int j = 0;
+    for (size_t i = 0; i < 3; i++)
     {
-        if (self->nodes[i].id == c) {
-            self->nodes[i].state = ALIVE;
+        if(self->nodes[i].id != 0 && self->nodes[i].id != self->Id) {
+            SCI_WRITE(&sci0, "22222222222222222222\n");
+            self->msgs[j].msg = AFTER(MSEC(10), self, kickoff, self->nodes[i].id);
+            self->msgs[j].id = self->nodes[i].id;
+            j++;
+            detectofflinenodeRPC(self, self->msgs[j].id);
         }
     }
     
 }
 
-void detectReply(App *self, int c) {
+int isConductorAlive(App* self, int c) {
+    for (size_t i = 0; i < 3; i++)
+    {
+        if (self->nodes[i].mod == CONDUCTOER && self->nodes[i].state == SILENT)
+        {
+            return 1;
+        }
+        
+    }
+    return 0;
+}
+
+void detectofflinenodeRPC(App *self, int dstid) {
     CANMsg msg;
     msg.nodeId = self->Id;
     msg.length = 7;
-    msg.buff[OPCODE] = ANSWER_DETECT_OFFLINE; 
-    msg.buff[RECEIVER] = c;
+    msg.buff[OPCODE] = DETECT_OFFLINE_NODE; 
+    msg.buff[RECEIVER] = dstid;
     msg.buff[2] = 0; 
     msg.buff[3] = 0;
     msg.buff[4] = 0;
     msg.buff[5] = 0;
-    
     msg.slient = self->silent;
     CAN_SEND(&can0, &msg);
     return;
 }
-void checkAndNotify(App *self, int c) {
-    for (size_t i = 0; i < NODES; i++)
+
+void detectofflinenodelocal(App *self, int dstid) {
+    CANMsg msg;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = ANSWER_DETECT_OFFLINE; 
+    msg.buff[RECEIVER] = dstid;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    msg.slient = self->silent;
+    CAN_SEND(&can0, &msg);
+    return;
+}
+
+void abortkickoff(App* self, int c) {
+    for (size_t i = 0; i < 2; i++)
     {
-        if (self->nodes[i].id != self->Id)  
+        if (self->msgs[i].id == c) 
         {
-            if (self->nodes[i].state == SILENT) {
-                // notify
-                notifyRPC(self->Id, self->nodes[i].id, self->silent);
-                if (self->nodes[i].mod == CONDUCTOER) {
-                    // elect
-                }
-            }
+            ABORT(self->msgs[i].msg);
+        }
+        
+    }
+    // change view 
+    for (size_t i = 0; i < c; i++)
+    {
+        if (self->nodes[i].id == c)
+        {
+            self->nodes[i].state = SILENT;
         }
         
     }
     
+    
+    
 }
+
+void kickoff(App* self, int kickoffid) {
+    for (size_t i = 0; i < 3; i++)
+    {
+        if (self->nodes[i].id == kickoffid) {
+            self->nodes[i].state = SILENT;
+            notifyNodeOff(self->Id, kickoffid);
+        }
+    }
+    
+}
+
+void notifyNodeOff(int srcid, int offid) {
+    CANMsg msg;
+    msg.nodeId = srcid;
+    msg.length = 7;
+    msg.buff[OPCODE] = NOTIFY_NODE_OFFLINE; 
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = offid;
+    int ifslient = SYNC(&app, getIfslient, 0);
+    msg.slient = ifslient == SILENT? true: false;
+    CAN_SEND(&can0, &msg);
+    return;
+}
+
+
+
 
 void notifyRPC(int id, int deadid, bool silent) {
     CANMsg msg;
@@ -897,7 +980,7 @@ void notifyRPC(int id, int deadid, bool silent) {
 }
 
 void notifyLocal(App *self, int c) {
-    for (size_t i = 0; i < NODES; i++)
+    for (size_t i = 0; i < 3; i++)
     {
         if (self->nodes[i].id == c)
         {
@@ -911,7 +994,7 @@ int getPreNodeID(App *self, int c) {
     return self->preNodeID;
 }
 
-void disconnectCheckThread(App *self, int c) {   // boot at beginning
+int  disconnectCheckThread(App *self, int c) {   // boot at beginning
     CANMsg msg;
     int isdisconnect;
     msg.nodeId = self->Id;
@@ -923,17 +1006,20 @@ void disconnectCheckThread(App *self, int c) {   // boot at beginning
     msg.buff[4] = 0;
     msg.buff[5] = 0;
     msg.slient = self->silent;
-    isdisconnect =  CAN_SEND(&can0, &msg);
-    if (isdisconnect == -1) { // f1 f2 mode, this is no need to loop! remember to reboot when come to life
-        return; 
+    SCI_WRITE(&sci0, "check \n");
+    for (size_t i = 0; i < 5; i++)
+    {
+        SCI_WRITE(&sci0, "check \n");
+        isdisconnect +=  CAN_SEND(&can0, &msg);
     }
-    self->disconnecttime += isdisconnect;
-    if (self->disconnecttime < 3) {
-        // success keep checking
-        AFTER(MSEC(100), self, disconnectCheckThread, 0);
-    } else if (self->disconnecttime == 3){
+    if (isdisconnect > 3) {
         // fail . boot another thread to check if i connect to system again?
         ASYNC(self, connectCheckThread, 0);
+
+        return 1;
+    } else {
+        // is another node's failure
+        return 0;
     }
 }
 
@@ -955,9 +1041,9 @@ void connectCheckThread(App *self, int c) {
         AFTER(MSEC(100), self, connectCheckThread, 0);
     } else {
         // success, do something
-        self->disconnecttime = 0;
-        //  do something
-        ASYNC(self, )
+        // 
+        SCI_WRITE(&sci0, "i find I reconnected \n");
+    
     }
 }
 ///////////////////////////////////////////////////////////
