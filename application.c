@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+
 #include "semaphore.h"  
 #include "sioTinyTimber.h"
 #define TRUE 1
@@ -16,19 +17,35 @@
 #define OPCODE 0
 #define RECEIVER 1
 #define BROADCAST 0x00
-#define MUSIC_PLAY_NOTE_IDX 7
-#define MUSIC_START_ALL 5
 #define SEARCH_NETWORK 0
 #define CLAIM_EXISTENCE 1
 #define CLAIM_CONDUCTORSHIP 2
 #define ANSWER_TO_CLAIM_CONDUCTORSHIP 3
 #define IAMLEADER 4
+#define NODE_REMAIN_ACTIVE 5
+#define DETECT_OFFLINE_NODE 6
+#define ANSWER_DETECT_OFFLINE 7
+#define NOTIFY_NODE_OFFLINE 8
+#define NODE_LOGIN_REQUEST 9
+#define NODE_LOGIN_CONFIRM 10
+#define MUSIC_START_ALL 11
+#define MUSIC_PLAY_NOTE_IDX 13
+#define MUSIC_SET_KEY 15
+#define MUSIC_SET_TEMPO 16
+
+
+
+
+
+
+
 #define ALIVE 1
 #define SILENT 0
-#define MUSIC_SET_KEY 9
-#define MUSIC_SET_TEMPO 10
+
 #define NODES 2
 #define ID 2
+
+
 
 
 /* 
@@ -67,6 +84,9 @@ typedef struct {
     int Id; // its own Id 1,2,3
     int vote;   //p2, for leader election, -1 means the node has not voted. After voting, set it to candidate' id
     int numofvots; // 0
+    bool silent;
+    int preNodeID;
+    
 } App;
 
 
@@ -90,7 +110,7 @@ typedef struct {
     int tempo;
     int frequency_index;
     int start;
-    
+    Msg backUp;
 } MusicPlayer;
 
 
@@ -149,7 +169,18 @@ void imLeaderRPC(App*, int);
 void voteReplyRPC(App*, int);
 void voteReply(App*, int);
 void changeSysView(App*, int);
-
+void cometolife(App*, int);
+void backUp(App*, int);
+int getPreNodeID(App*, int);
+void detectRPC();
+void detect(App *, int);
+void checkAndNotify(App *, int);
+void detectReply(App *, int);
+void notifyRPC(int, int);
+void notifyLocal(App *, int);
+void getIfslient(App*, int);
+void abortRPC(int);
+void abortmy(MusicPlayer*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -193,16 +224,15 @@ void stopled(LED*, int);
 
 
 
-
 ///////////////////////////////////////////////////////////
-App app = { initObject(), 0 , {}, MUSICIAN, 1, {}, ID, -1, 0}; // 
+App app = { initObject(), 0 , {}, MUSICIAN, 1, {}, ID, -1, 0, false, 10}; // 
 Serial sci0 = initSerial(SCI_PORT0, &app, reader);
 Semaphore muteVolumeSem = initSemaphore(1);       // lock the tg when is muted
 Can can0 = initCan(CAN_PORT0, &app, newrec); 
 Button bt = {initObject(), initTimer(), 0, 0, MOMENTARY, {}};
 SysIO button = initSysIO(SIO_PORT0, &bt, press);
 ToneGenerator tg = {initObject(),initCallBlock(), 500, true, 5, FALSE, USEC(100), false,TRUE, true}; // 500 USEC 650USEC 931USEC
-MusicPlayer mp = {initObject(), 0, 120, 0, TRUE};
+MusicPlayer mp = {initObject(), 0, 120, 0, TRUE, NULL};
 LED led = {initObject(), 120, TRUE};
 voteREplyMessge vote = {};
 
@@ -212,9 +242,14 @@ voteREplyMessge vote = {};
 ///////////////////////////////////////////////////////////
 // app
 void newrec(App *self, int unused) {
+    
     CANMsg msg;
     CAN_RECEIVE(&can0, &msg);
+    if (self->silent) {
+        return;
+    }
     char tempBuffer[50];
+    self->preNodeID = msg.nodeId;
     SCI_WRITE(&sci0, "---------------------------------------------------\n");
     sprintf(tempBuffer, "Msg from: %d | Opcode: %d | Receiver: %d \n", msg.nodeId, msg.buff[OPCODE], msg.buff[RECEIVER]);
     SCI_WRITE(&sci0, tempBuffer);
@@ -272,6 +307,23 @@ void newrec(App *self, int unused) {
     case IAMLEADER:
         ASYNC(&app, imLeader, msg.nodeId);
         break;
+    case NODE_REMAIN_ACTIVE:
+        ASYNC(&mp, abortmy, 0);
+        SCI_WRITE(&sci0, "abort backup no failure");
+        break;
+    case DETECT_OFFLINE_NODE:
+        ASYNC(&app, detectReply, msg.nodeId);
+        SCI_WRITE(&sci0, "someone is detecting, I give a response \n");
+        break;
+    case ANSWER_DETECT_OFFLINE:
+        ASYNC(&app, detect, msg.nodeId);
+        SCI_WRITE(&sci0, "detecting, receive a response \n");
+        break;
+    case NOTIFY_NODE_OFFLINE:
+        ASYNC(&app, notifyLocal, msg.buff[5]);
+        SCI_WRITE(&sci0, "receive a dead node notify \n");
+        break;
+
     default:
         break;
     }
@@ -336,6 +388,8 @@ void receiver(App *self, int unused) {
             break;
     }
 }
+
+
 
 void reader(App *self, int c) {
     int bufferValue;
@@ -474,6 +528,26 @@ void reader(App *self, int c) {
     case 'V':
         ASYNC(&app, printView, 0);
         break;
+    case 'Q':
+        // f1
+        if (self->silent) {
+            // come to life
+            self->silent = false;
+            ASYNC(&app, searchNetworkRPC, 0);
+            SCI_WRITE(&sci0, "I am alive \n");
+        } else {
+            // be silent
+            self->silent = true;
+            SCI_WRITE(&sci0, "I entered  Failure Mode F1 \n");
+        }
+        break;
+    case 'W':
+        // f2
+        self->silent = true;
+        SCI_WRITE(&sci0, "I entered  Failure Mode F2 \n");
+        AFTER(SEC(5), &app, cometolife, 0);
+        break;
+
     default:
         break;
     }
@@ -721,6 +795,111 @@ void imLeaderRPC(App* self, int c) {
     SCI_WRITE(&sci0, "imLeaderRPC sent.\n");
     return;
 }
+
+void cometolife(App *self, int c) {
+    self->silent = true;
+    ASYNC(self, searchNetwork, 0);
+}
+
+void backUp(App *self, int c) {
+    SCI_WRITE(&sci0, "fuck i need to deal with failure \n");
+    //detect and if is musican then relect
+    for (size_t i = 0; i < NODES; i++)
+    {
+        if (self->nodes[i].id != self->Id) {
+            self->nodes[i].state = SILENT;
+        }
+    }
+    detectRPC();
+    AFTER(MSEC(50), &app, checkAndNotify, 0);
+    //notify
+    ASYNC(self, checkAndNotify, 0);
+    // ASYNC(&mp, play1Note, c);
+    //find next node to play
+}
+void detectRPC() {
+    CANMsg msg;
+    msg.nodeId = SYNC(&app, getId, 0);
+    msg.length = 7;
+    msg.buff[OPCODE] = DETECT_OFFLINE_NODE; 
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    CAN_SEND(&can0, &msg);
+    return;
+}
+
+void detect(App *self, int c) {
+    for (size_t i = 0; i < NODES; i++)
+    {
+        if (self->nodes[i].id == c) {
+            self->nodes[i].state = ALIVE;
+        }
+    }
+    
+}
+
+void detectReply(App *self, int c) {
+    CANMsg msg;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = ANSWER_DETECT_OFFLINE; 
+    msg.buff[RECEIVER] = c;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    CAN_SEND(&can0, &msg);
+    return;
+}
+void checkAndNotify(App *self, int c) {
+    for (size_t i = 0; i < NODES; i++)
+    {
+        if (self->nodes[i].id != self->Id)  
+        {
+            if (self->nodes[i].state == SILENT) {
+                // notify
+                notifyRPC(self->Id, self->nodes[i].id);
+                if (self->nodes[i].mod == CONDUCTOER) {
+                    // elect
+                }
+            }
+        }
+        
+    }
+    
+}
+
+void notifyRPC(int id, int deadid) {
+    CANMsg msg;
+    msg.nodeId = id;
+    msg.length = 7;
+    msg.buff[OPCODE] = NOTIFY_NODE_OFFLINE; 
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = deadid;
+    CAN_SEND(&can0, &msg);
+    return;
+}
+
+void notifyLocal(App *self, int c) {
+    for (size_t i = 0; i < NODES; i++)
+    {
+        if (self->nodes[i].id == c)
+        {
+            self->nodes[i].state == SILENT;
+        }
+        
+    }
+    
+}
+int getPreNodeID(App *self, int c) {
+    return self->preNodeID;
+}
 ///////////////////////////////////////////////////////////
 // tone generator
 void tick(ToneGenerator *self, int c) {
@@ -887,6 +1066,8 @@ void play1Note(MusicPlayer* self, int noteIndex){
     int frequency_index;
     int period;
     double tempoFactor;
+    double tempoFactor2;
+    Msg backup;
     if (!self->start) {
         return;
     }
@@ -897,6 +1078,13 @@ void play1Note(MusicPlayer* self, int noteIndex){
     } else {
         tempoFactor = 1.0;
     }
+    if (tempos[noteIndex+1] == 'b') {
+        tempoFactor2 = 2.0;
+    } else if (tempos[noteIndex+1] == 'c'){
+        tempoFactor2 = 0.5;
+    } else {
+        tempoFactor2 = 1.0;
+    }
     SYNC(&tg, muteGap, 0);
     frequency_index = frequency_indices[noteIndex] + self->key;
     period = periods[frequency_index+10];
@@ -905,6 +1093,8 @@ void play1Note(MusicPlayer* self, int noteIndex){
     ASYNC(&tg, tick, 0);
     AFTER(MSEC(50), &tg, unMuteGap, 0);
     SEND(MSEC((int)60000 / self->tempo * tempoFactor), USEC(100), self, stopAndSend, noteIndex);
+    backup = AFTER(MSEC(((int)60000 / self->tempo * tempoFactor) + ((int)60000 / self->tempo * tempoFactor2)+ 10), &app, backUp, noteIndex+1);
+    self->backUp = backup;
 
 }
 
@@ -991,7 +1181,11 @@ void stopAndSend(MusicPlayer* self, int noteIndex) {
     int receiverID;
     ASYNC(&tg, stopTG, 0);
     receiverID = (SYNC(&app, getId, 0)) % NODES + 1;   // test 2  /// 3
+    int preNodeID = SYNC(&app, getPreNodeID, 0);
+    abortRPC(preNodeID);
     play1NoteRPC(noteIndex+1, receiverID);
+    
+    
     SCI_WRITE(&sci0, "stopMp and sent instruction to next processor \n");
 
 }
@@ -1015,6 +1209,25 @@ void play1NoteRPC(int noteIndex, int receiverID) {
     return;
 }
 
+
+void abortRPC(int preNodeID) {
+    CANMsg msg;
+    msg.nodeId = SYNC(&app, getId, 0);
+    msg.length = 7;
+    msg.buff[OPCODE] = NODE_REMAIN_ACTIVE;
+    msg.buff[RECEIVER] = preNodeID;
+    
+    msg.buff[2] = 0;
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    CAN_SEND(&can0, &msg);
+    return;
+}
+
+void abortmy(MusicPlayer* self, int c) {
+    ABORT(self->backUp);
+}
 
 // Button
 ///////////////////////////////////////////////////////////
