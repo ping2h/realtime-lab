@@ -174,6 +174,8 @@ void imLeaderRPC(App*, int);
 void voteReplyRPC(App*, int);
 void voteReply(App*, int);
 int numofalivenodes(App*, int);
+int getNextAvailID(App*, int);
+
 
 void changeSysView(App*, int);
 void cometolife(App*, int);
@@ -188,6 +190,7 @@ void abortmy(MusicPlayer*, int); // suffix my: beacuse name confilc.
 int disconnectCheckThread(App *, int);
 void connectCheckThread(App*, int);
 void failureNodeDetection(App*, int);
+void afterDetection(App*, int);
 void detectofflinenodeRPC(App *, int);
 void abortkickoff(App *, int);
 void kickoff(App*, int);
@@ -846,10 +849,10 @@ void backUp(App *self, int c) {
     } else {
         SCI_WRITE(&sci0, "it is other nodes' failure\n");
         failureNodeDetection(self, 0); // detect and notify
-        if(isConductorAlive(self, 0)) {   // leader election
-            leaderElectionRPC(self, 0);
-        }
-
+        // printView(self, 0);
+        
+        AFTER(MSEC(10), self, afterDetection, c);
+        
     }
 }
 
@@ -867,6 +870,27 @@ void failureNodeDetection(App *self, int c) {
         }
     }
     
+}
+
+void afterDetection(App* self, int nextnoteindex) {
+    if(isConductorAlive(self, 0)) {   // leader election
+        leaderElectionRPC(self, 0);
+    }
+        // start play next no
+    char t[50];
+        
+    int nextID =getNextAvailID(self, 0);
+    sprintf(t, "next noteindex: %d\n, id %d", nextnoteindex, nextID);
+    SCI_WRITE(&sci0, t);
+    if (nextID == self->Id)
+    {   if (nextnoteindex == 32) {
+            nextnoteindex = 0;
+        }
+        SCI_WRITE(&sci0, "3333333333\n");
+        ASYNC(&mp, play1Note, nextnoteindex);
+    } else {
+        play1NoteRPC(nextnoteindex, nextID);
+    }
 }
 
 int isConductorAlive(App* self, int c) {
@@ -1239,8 +1263,12 @@ void play1Note(MusicPlayer* self, int noteIndex){
     ASYNC(&tg, tick, 0);
     AFTER(MSEC(50), &tg, unMuteGap, 0);
     SEND(MSEC((int)60000 / self->tempo * tempoFactor), USEC(100), self, stopAndSend, noteIndex);
-    backup = AFTER(MSEC(((int)60000 / self->tempo * tempoFactor) + ((int)60000 / self->tempo * tempoFactor2)+ 10), &app, backUp, noteIndex+1);
-    self->backUp = backup;
+    int numofalive = SYNC(&app, numofalivenodes, 0);
+    if (numofalive != 1) {
+        backup = AFTER(MSEC(((int)60000 / self->tempo * tempoFactor) + ((int)60000 / self->tempo * tempoFactor2)+ 10), &app, backUp, noteIndex+1);
+        self->backUp = backup;
+    }
+    
 
 }
 
@@ -1328,14 +1356,47 @@ void startDS(MusicPlayer* self, int c) {
 void stopAndSend(MusicPlayer* self, int noteIndex) {
     int receiverID;
     ASYNC(&tg, stopTG, 0);
-    receiverID = (SYNC(&app, getId, 0)) % NODES + 1;   // test 2  /// 3
+    // receiverID = (SYNC(&app, getId, 0)) % NODES + 1;   // test 2  /// 3
+    receiverID = SYNC(&app, getNextAvailID, 0);
     int preNodeID = SYNC(&app, getPreNodeID, 0);
     abortRPC(preNodeID);
-    play1NoteRPC(noteIndex+1, receiverID);
+    if (receiverID == SYNC(&app, getId, 0)) {
+        SCI_WRITE(&sci0, "44444444\n");
+        char t[50];
+        sprintf(t, "noteidx : %d", noteIndex);
+        SCI_WRITE(&sci0, t);
+        if (noteIndex + 1 == 32) {
+            noteIndex = -1;
+        }
+        ASYNC(&mp, play1Note, noteIndex+1);
+    } else {
+        play1NoteRPC(noteIndex+1, receiverID);
+    }
+    
     
     
     SCI_WRITE(&sci0, "stopMp and sent instruction to next processor \n");
 
+}
+
+int getNextAvailID(App* self, int c) {
+    int lookfor = self->Id % NODES + 1;
+    while (true)
+    {
+        for (size_t i = 0; i < 3; i++)
+        {
+            if (lookfor == self->nodes[i].id && self->nodes[i].state == ALIVE )
+            {
+                return lookfor;
+            } else if (lookfor == self->nodes[i].id && self->nodes[i].state == SILENT) {
+                break;
+            }
+            
+        }
+        lookfor = lookfor % NODES + 1;
+        
+    }
+    
 }
 
 void play1NoteRPC(int noteIndex, int receiverID) {
