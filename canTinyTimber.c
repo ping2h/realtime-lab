@@ -18,7 +18,7 @@ void can_init(Can *self, int unused) {
 	DUMP("NOTE: CAN running in loopback mode!\n\r");
 #endif
 
-//#define	__CAN_TxAck // if defined: single transmission, can_send() will wait for message error or acknowledgement
+#define	__CAN_TxAck // if defined: single transmission, can_send() will wait for message error or acknowledgement
                     //  default: automatic retransmission, can_send() will not wait for message error or acknowledgement
                         
 	CAN_StructInit(&CAN_InitStructure);
@@ -133,7 +133,8 @@ int can_receive(Can *self, CANMsg *msg){
 int can_send(Can *self, CANMsg *msg){
 	if (msg->slient) {
 		// silent mode, nothing
-		return -1;
+		DUMP("silent failure !\n\r");
+		return 1;
 	}
     uchar index;
 	CAN_TypeDef* canport = self->port;
