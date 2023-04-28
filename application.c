@@ -28,10 +28,11 @@
 #define NOTIFY_NODE_OFFLINE 8
 #define NODE_LOGIN_REQUEST 9
 #define NODE_LOGIN_CONFIRM 10
-#define MUSIC_START_ALL 11
-#define MUSIC_PLAY_NOTE_IDX 13
-#define MUSIC_SET_KEY 15
-#define MUSIC_SET_TEMPO 16
+#define NODE_LOGIN_SUCCESS 11
+#define MUSIC_START_ALL 12
+#define MUSIC_PLAY_NOTE_IDX 14
+#define MUSIC_SET_KEY 16
+#define MUSIC_SET_TEMPO 17
 
 
 
@@ -43,7 +44,9 @@
 #define SILENT 0
 
 #define NODES 3
-#define ID 1
+#define ID 2
+
+
 
 
 
@@ -196,6 +199,11 @@ void abortkickoff(App *, int);
 void kickoff(App*, int);
 void notifyNodeOff(int, int);
 int  isConductorAlive(App*, int);
+void loginRequestRPC(App*, int);
+void loginRequestLocal(App*, int);
+void loginConfirmLocal(App*, int);
+void loginSuccessRPC(App*, int);
+void loginSuccessLocal(App*, int);
 
 void press(Button*, int);
 void check1Sec(Button*, int);
@@ -230,7 +238,8 @@ void startDS(MusicPlayer*, int);
 void startRPC(int, bool);
 void changeKeyRPC(MusicPlayer*, int);
 void changeTempoRPC(MusicPlayer*, int);
-
+void setIndex(MusicPlayer*, int);
+int getIndex(MusicPlayer*, int);
 void blink(LED*, int);
 void changeLed(LED*, int);
 void startled(LED*, int);
@@ -337,6 +346,15 @@ void newrec(App *self, int unused) {
     case NOTIFY_NODE_OFFLINE:
         ASYNC(&app, notifyLocal, msg.buff[5]);
         SCI_WRITE(&sci0, "receive a dead node notify \n");
+        break;
+    case NODE_LOGIN_REQUEST:
+        ASYNC(&app, loginRequestLocal, msg.nodeId);
+        break;
+    case NODE_LOGIN_CONFIRM:
+        ASYNC(&app, loginConfirmLocal, msg.nodeId);
+        break;
+    case NODE_LOGIN_SUCCESS:
+        ASYNC(&app, loginSuccessLocal, msg.nodeId);
         break;
     default:
         break;
@@ -785,7 +803,7 @@ int numofalivenodes(App *self, int c) {
     {
         if (self->nodes[i].state == ALIVE) {
             sum++;
-            SCI_WRITE(&sci0, "@@@@@@@@@@\n");
+            
         }
     }
     
@@ -841,7 +859,7 @@ void cometolife(App *self, int c) {
 }
 
 void backUp(App *self, int c) {
-    SCI_WRITE(&sci0, "fuck i need to deal with failure \n");
+    SCI_WRITE(&sci0, "i need to deal with failure \n");
     
     int disconnect = disconnectCheckThread(self, 0);
     if (disconnect == 1) {
@@ -851,7 +869,7 @@ void backUp(App *self, int c) {
         failureNodeDetection(self, 0); // detect and notify
         // printView(self, 0);
         
-        AFTER(MSEC(10), self, afterDetection, c);
+        AFTER(MSEC(20), self, afterDetection, c);
         
     }
 }
@@ -883,11 +901,10 @@ void afterDetection(App* self, int nextnoteindex) {
     sprintf(t, "next noteindex: %d\n, id %d", nextnoteindex, nextID);
     SCI_WRITE(&sci0, t);
     if (nextID == self->Id)
-    {   if (nextnoteindex == 32) {
-            nextnoteindex = 0;
-        }
-        SCI_WRITE(&sci0, "3333333333\n");
-        ASYNC(&mp, play1Note, nextnoteindex);
+    {   
+        // solo
+        SYNC(&mp, setIndex, nextnoteindex);
+        ASYNC(&mp, start, 0);
     } else {
         play1NoteRPC(nextnoteindex, nextID);
     }
@@ -1067,8 +1084,97 @@ void connectCheckThread(App *self, int c) {
         // success, do something
         // 
         SCI_WRITE(&sci0, "i find I reconnected \n");
+        loginRequestRPC(self, 0);
+        AFTER(MSEC(10), self, loginSuccessRPC, 0);
     
     }
+}
+
+void loginRequestRPC(App *self, int c) {
+    for (size_t i = 0; i < 3; i++)
+    {
+        if (self->nodes[i].id != self->Id) {
+            self->nodes[i].state = SILENT;
+        }
+    }
+    CANMsg msg;
+    int isdisconnect;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = NODE_LOGIN_REQUEST;  // do nothing
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    msg.slient = self->silent;
+    CAN_SEND(&can0, &msg);
+    SCI_WRITE(&sci0, "loginRequest sent\n");
+
+    
+}
+
+void loginRequestLocal(App *self, int loginID) {
+    CANMsg msg;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = NODE_LOGIN_CONFIRM;  // do nothing
+    msg.buff[RECEIVER] = loginID;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    msg.slient = self->silent;
+    CAN_SEND(&can0, &msg);
+    SCI_WRITE(&sci0, "loginConfirm sent\n");
+
+}
+
+void loginSuccessRPC(App *self, int c) {
+    CANMsg msg;
+    msg.nodeId = self->Id;
+    msg.length = 7;
+    msg.buff[OPCODE] = NODE_LOGIN_SUCCESS;  // do nothing
+    msg.buff[RECEIVER] = BROADCAST;
+    msg.buff[2] = 0; 
+    msg.buff[3] = 0;
+    msg.buff[4] = 0;
+    msg.buff[5] = 0;
+    msg.slient = self->silent;
+    CAN_SEND(&can0, &msg);
+    SCI_WRITE(&sci0, "loginSuccess sent\n");
+}
+
+
+void loginSuccessLocal(App *self, int loginid) {
+    for (size_t i = 0; i < 3; i++)
+    {
+        /* code */
+        if (self->nodes[i].id == loginid) {
+            self->nodes[i].state = ALIVE;
+        }
+    }
+    int alivenodes = numofalivenodes(self, 0);
+    if (alivenodes == 2) {
+        SCI_WRITE(&sci0, "alive nodes :2 \n");
+        ASYNC(&mp, stop, 0);
+        int noteindex = SYNC(&mp, getIndex, 0);
+        int receiverid = getNextAvailID(self, 0);
+        play1NoteRPC(noteindex, receiverid);
+    } else {
+        SCI_WRITE(&sci0, "alive nodes :3 \n");
+        return;
+    }
+    
+}
+void loginConfirmLocal(App *self, int confirmid) {
+    for (size_t i = 0; i < 3; i++)
+    {
+        if(self->nodes[i].id == confirmid) {
+            self->nodes[i].state = ALIVE;
+        }
+    }
+    
 }
 ///////////////////////////////////////////////////////////
 // tone generator
@@ -1263,11 +1369,8 @@ void play1Note(MusicPlayer* self, int noteIndex){
     ASYNC(&tg, tick, 0);
     AFTER(MSEC(50), &tg, unMuteGap, 0);
     SEND(MSEC((int)60000 / self->tempo * tempoFactor), USEC(100), self, stopAndSend, noteIndex);
-    int numofalive = SYNC(&app, numofalivenodes, 0);
-    if (numofalive != 1) {
-        backup = AFTER(MSEC(((int)60000 / self->tempo * tempoFactor) + ((int)60000 / self->tempo * tempoFactor2)+ 10), &app, backUp, noteIndex+1);
-        self->backUp = backup;
-    }
+    backup = AFTER(MSEC(((int)60000 / self->tempo * tempoFactor) + ((int)60000 / self->tempo * tempoFactor2)+ 10), &app, backUp, noteIndex+1);
+    self->backUp = backup;
     
 
 }
@@ -1307,7 +1410,13 @@ void changeTempoRPC(MusicPlayer* self, int c) {
     return;
 }
 
+void setIndex(MusicPlayer* self, int c) {
+    self->frequency_index = c;
+}
 
+int getIndex(MusicPlayer* self, int c) {
+    return self->frequency_index;
+}
 void changeKey(MusicPlayer* self, int c) {
     keybool = false;
     self->key = c;
@@ -1360,21 +1469,7 @@ void stopAndSend(MusicPlayer* self, int noteIndex) {
     receiverID = SYNC(&app, getNextAvailID, 0);
     int preNodeID = SYNC(&app, getPreNodeID, 0);
     abortRPC(preNodeID);
-    if (receiverID == SYNC(&app, getId, 0)) {
-        SCI_WRITE(&sci0, "44444444\n");
-        char t[50];
-        sprintf(t, "noteidx : %d", noteIndex);
-        SCI_WRITE(&sci0, t);
-        if (noteIndex + 1 == 32) {
-            noteIndex = -1;
-        }
-        ASYNC(&mp, play1Note, noteIndex+1);
-    } else {
-        play1NoteRPC(noteIndex+1, receiverID);
-    }
-    
-    
-    
+    play1NoteRPC(noteIndex+1, receiverID); 
     SCI_WRITE(&sci0, "stopMp and sent instruction to next processor \n");
 
 }
